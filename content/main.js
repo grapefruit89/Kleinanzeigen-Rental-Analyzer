@@ -2,7 +2,11 @@ const KleinanzeigenAnalyzer = {
     _debounceTimer: null,
 
     async init() {
-        console.log("[KA-ANALYZER] Initialisiere Full-Knowledge-Export...");
+        console.log("[KA-ANALYZER] Initialisiere Header & Dashboard...");
+        
+        // Button immer injizieren (falls möglich)
+        KAUI.injectHeaderButton();
+        
         if (this.ensureFilters()) return; 
         KAUI.injectDashboard();
         KAUI.lockFilters();
@@ -65,7 +69,6 @@ const KleinanzeigenAnalyzer = {
 
         const regionalMatrix = this.getHistoricalRegionalMatrix(currentAdsData, db);
         
-        // Wir übergeben das gesamte DB-Objekt für den Export
         KAUI.updateDashboard(globalStats, regionalMatrix, db, currentAdsData.length);
         KANavigation.updateVisibleAds(currentAdsData.map(d => d.ad));
     },
@@ -116,6 +119,7 @@ const KleinanzeigenAnalyzer = {
     observe() {
         let lastUrl = location.href;
         const observer = new MutationObserver(() => {
+            KAUI.injectHeaderButton(); // Auch bei URL-Wechsel sicherstellen
             clearTimeout(this._debounceTimer);
             this._debounceTimer = setTimeout(() => {
                 KAUI.lockFilters();

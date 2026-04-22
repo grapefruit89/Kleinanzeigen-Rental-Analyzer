@@ -2,6 +2,31 @@ const KAUI = {
     activeCategory: null,
     activeRegion: null,
 
+    injectHeaderButton() {
+        if (document.getElementById('ka-header-analyzer-btn')) return;
+        
+        // Suche den Wrapper im Header
+        const wrapper = document.querySelector('.ka-site-header--inner--wrapper');
+        if (wrapper) {
+            const btn = document.createElement('button');
+            btn.id = 'ka-header-analyzer-btn';
+            btn.className = 'ka-header-btn';
+            btn.title = 'Rental Analyzer scharfschalten';
+            // Wir nutzen das "k" Symbol aus unserem Icon
+            btn.innerHTML = `
+                <svg viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M40 35V93M40 64L80 35M40 64L80 93" stroke="white" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            `;
+            btn.onclick = (e) => {
+                e.preventDefault();
+                window.location.href = 'https://www.kleinanzeigen.de/s-wohnung-mieten/anzeige:angebote/c203+wohnung_mieten.swap_s:nein';
+            };
+            // Ganz vorne im Wrapper einfügen (links neben dem Suchfeld)
+            wrapper.prepend(btn);
+        }
+    },
+
     injectDashboard() {
         if (document.getElementById('ka-analyzer-dashboard')) return;
         const resultsList = document.querySelector('#srchrslt-results') || document.querySelector('.ad-list');
@@ -76,7 +101,6 @@ const KAUI = {
             const date = new Date(item.t).toISOString().split('T')[0];
             rows.push([id, item.plz, item.p.toFixed(2).replace('.', ','), date]);
         }
-        
         const csvContent = "\uFEFF" + rows.map(e => e.join(";")).join("\n");
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
@@ -94,24 +118,19 @@ const KAUI = {
         } else {
             this.activeCategory = category; this.activeRegion = plz;
         }
-        
         const ads = document.querySelectorAll('article[data-adid], .aditem');
         ads.forEach(ad => {
             const listItem = ad.closest('.ad-listitem') || ad;
             if (ad.style.display === 'none' && !ad.classList.contains('ka-filtered')) return; 
-
             if (!this.activeCategory) {
-                listItem.style.display = '';
-                ad.classList.remove('ka-filtered');
+                listItem.style.display = ''; ad.classList.remove('ka-filtered');
             } else {
                 const hasPriceClass = ad.classList.contains(`ka-price-${this.activeCategory}`);
                 const adPlz = KARentalParser.extract(ad)?.plzFull || "";
                 const hasPlzMatch = adPlz.startsWith(plz.replace('X', ''));
-                
                 const matches = hasPriceClass && hasPlzMatch;
                 listItem.style.display = matches ? '' : 'none';
-                if (!matches) ad.classList.add('ka-filtered');
-                else ad.classList.remove('ka-filtered');
+                if (!matches) ad.classList.add('ka-filtered'); else ad.classList.remove('ka-filtered');
             }
         });
         this.updateDashboardState();
