@@ -5,14 +5,16 @@ const KAUI = {
     injectHeaderButton() {
         if (document.getElementById('ka-header-analyzer-btn')) return;
         
-        // Suche den Wrapper im Header
-        const wrapper = document.querySelector('.ka-site-header--inner--wrapper');
+        // 1. Suche nach dem modernen Homepage-Header-Wrapper
+        // 2. Fallback auf den klassischen Such-Header-Wrapper
+        const wrapper = document.querySelector('[data-testid="header-bottom"] > div') || 
+                        document.querySelector('.ka-site-header--inner--wrapper');
+
         if (wrapper) {
             const btn = document.createElement('button');
             btn.id = 'ka-header-analyzer-btn';
             btn.className = 'ka-header-btn';
             btn.title = 'Rental Analyzer scharfschalten';
-            // Wir nutzen das "k" Symbol aus unserem Icon
             btn.innerHTML = `
                 <svg viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M40 35V93M40 64L80 35M40 64L80 93" stroke="white" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
@@ -22,8 +24,10 @@ const KAUI = {
                 e.preventDefault();
                 window.location.href = 'https://www.kleinanzeigen.de/s-wohnung-mieten/anzeige:angebote/c203+wohnung_mieten.swap_s:nein';
             };
-            // Ganz vorne im Wrapper einfügen (links neben dem Suchfeld)
+            
+            // Ganz vorne im Flex-Container einfügen (links neben dem Such-Container)
             wrapper.prepend(btn);
+            console.log("[KA-ANALYZER] Header-Button injiziert in: " + (wrapper.dataset.testid || "classic-wrapper"));
         }
     },
 
