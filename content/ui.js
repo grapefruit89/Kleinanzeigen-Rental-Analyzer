@@ -5,11 +5,17 @@ const KAUI = {
     injectHeaderButton() {
         if (document.getElementById('ka-header-analyzer-btn')) return;
         
-        // Suche den Such-Container (entweder Homepage-Layout oder klassisches Layout)
         const searchContainer = document.querySelector('[data-testid="search-bar-container"]') || 
                                 document.querySelector('#site-search-form');
 
         if (searchContainer) {
+            // WICHTIG: Den Eltern-Container auf Flex stellen, damit sie nebeneinander stehen
+            const parent = searchContainer.parentNode;
+            if (parent) {
+                parent.style.display = 'flex';
+                parent.style.alignItems = 'center';
+            }
+
             const btn = document.createElement('button');
             btn.id = 'ka-header-analyzer-btn';
             btn.className = 'ka-header-btn';
@@ -24,10 +30,8 @@ const KAUI = {
                 window.location.href = 'https://www.kleinanzeigen.de/s-wohnung-mieten/anzeige:angebote/c203+wohnung_mieten.swap_s:nein';
             };
             
-            // Wir fügen den Button DIREKT VOR dem Such-Container ein
-            // Das sorgt dafür, dass er im Flex-Layout ein echter Nachbar auf gleicher Ebene ist
-            searchContainer.parentNode.insertBefore(btn, searchContainer);
-            console.log("[KA-ANALYZER] Header-Button als Sibling vor Such-Container injiziert.");
+            parent.insertBefore(btn, searchContainer);
+            console.log("[KA-ANALYZER] Header-Button mit Flex-Zwang injiziert.");
         }
     },
 

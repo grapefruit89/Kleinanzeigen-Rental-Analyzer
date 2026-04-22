@@ -22,20 +22,20 @@
     color: white;
     border: none;
     border-radius: 50%;
-    width: 34px;
-    height: 34px;
+    width: 36px;
+    height: 36px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     margin-right: 12px;
-    margin-top: 6px; /* Kleiner Offset für bessere vertikale Zentrierung */
     flex-shrink: 0;
     transition: transform 0.2s, background-color 0.2s;
     box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    align-self: center; /* Wichtig für Flex-Container */
 }
 .ka-header-btn:hover { background-color: #70c4e8; transform: scale(1.05); }
-.ka-header-btn svg { width: 20px; height: 20px; }
+.ka-header-btn svg { width: 22px; height: 22px; }
 
 #ka-dash-export-btn, #ka-dash-clear-btn { background: none; border: none; color: #2342b2; text-decoration: underline; cursor: pointer; }
 .ka-price-low { background-color: rgba(56, 203, 127, 0.05) !important; }
