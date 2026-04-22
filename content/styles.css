@@ -1,0 +1,49 @@
+#ka-analyzer-dashboard {
+    background: #fff; border: 1px solid #ddd; border-radius: 12px; padding: 15px; margin: 10px 20px 20px 0;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.08); font-family: Arial, sans-serif;
+    width: 100%; max-width: 950px; box-sizing: border-box; clear: both; display: block !important;
+}
+
+.ka-matrix-row {
+    margin-bottom: 15px; width: 100%;
+}
+
+.ka-matrix-grid {
+    display: flex; gap: 8px; margin-bottom: 4px; width: 100%;
+}
+
+.ka-matrix-cell {
+    flex: 1; padding: 12px 8px; border-radius: 8px; text-align: center;
+    border-bottom: 3px solid #ccc; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s;
+}
+.ka-matrix-cell:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+.ka-matrix-cell.active { border-bottom-width: 6px; transform: translateY(0); box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); }
+
+.ka-matrix-cell.ka-low { background: #ecfaed; border-color: #38cb7f; color: #1e5631; }
+.ka-matrix-cell.ka-mid { background: #fff8d2; border-color: #ffd264; color: #856404; }
+.ka-matrix-cell.ka-high { background: #fff1ef; border-color: #ff6363; color: #721c24; }
+
+.ka-matrix-label { font-size: 0.65em; font-weight: bold; text-transform: uppercase; opacity: 0.7; display: block; }
+.ka-matrix-price { font-size: 1.1em; font-weight: bold; display: block; }
+
+.ka-matrix-footer {
+    font-size: 0.75em; color: #666; display: flex; justify-content: space-between; padding: 0 4px; width: 100%;
+}
+.ka-matrix-footer b { color: #2342b2; }
+
+#ka-dash-meta {
+    margin-top: 15px; padding-top: 10px; border-top: 1px dotted #ccc;
+    font-size: 0.8em; color: #888; display: flex; justify-content: space-between; align-items: center; width: 100%;
+}
+
+#ka-dash-export-btn, #ka-dash-clear-btn {
+    background: none; border: none; color: #2342b2; text-decoration: underline; cursor: pointer; font-size: 1em;
+}
+#ka-dash-clear-btn { color: #bbb; margin-left: 10px; }
+
+.ka-price-low { background-color: rgba(56, 203, 127, 0.05) !important; }
+.ka-price-mid { background-color: rgba(255, 210, 100, 0.05) !important; }
+.ka-price-high { background-color: rgba(255, 99, 99, 0.05) !important; }
+.ka-outlier { opacity: 0.4; }
+.ka-ad-focused { outline: 4px solid #2342b2 !important; outline-offset: -4px; }
+.ka-sqm-badge { background: #2342b2; color: white; padding: 1px 4px; border-radius: 3px; font-size: 0.75em; font-weight: bold; margin-left: 5px; }

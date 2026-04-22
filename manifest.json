@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "Kleinanzeigen Rental Analyzer",
+  "version": "1.0.0",
+  "description": "Analyse-Tool für Mietpreise auf Kleinanzeigen.de",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://www.kleinanzeigen.de/s-wohnung-mieten/*"
+  ],
+  "action": {
+    "default_icon": {
+      "128": "icons/icon.svg"
+    }
+  },
+  "icons": {
+    "128": "icons/icon.svg"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.kleinanzeigen.de/s-wohnung-mieten/*"
+      ],
+      "js": [
+        "lib/storage.js",
+        "lib/parser.js",
+        "lib/stats.js",
+        "content/ui.js",
+        "content/navigation.js",
+        "content/main.js"
+      ],
+      "css": [
+        "content/styles.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
