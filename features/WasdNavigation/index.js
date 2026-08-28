@@ -2,6 +2,30 @@ const KANavigation = {
     currentIndex: -1,
     visibleAds: [],
 
+    // Kleinanzeigen hat sein Frontend auf Astro/Tailwind umgestellt (Stand 2026).
+    // Die alten Klassen .pagination-next/.pagination-prev existieren nicht mehr,
+    // und die Pfeil-Buttons haben keinen sichtbaren Text mehr -- nur ein Icon.
+    // Robust: zuerst per aria-label suchen (das ist stabil geblieben),
+    // danach die alten Selektoren als Fallback, falls sich das nochmal ändert.
+    findPaginationLink(kind) {
+        const ariaLabels = kind === 'next'
+            ? ['Nächste', 'nächste Seite', 'Next']
+            : ['Zurück', 'Vorherige', 'vorherige Seite', 'Previous'];
+
+        for (const label of ariaLabels) {
+            const el = document.querySelector(`a[aria-label="${label}"]`);
+            if (el) return el;
+        }
+
+        // Fallback: alte, evtl. veraltete Selektoren
+        const legacySelector = kind === 'next' ? '.pagination-next' : '.pagination-prev';
+        const legacyEl = document.querySelector(legacySelector);
+        if (legacyEl) return legacyEl;
+
+        const textMatch = kind === 'next' ? 'Nächste' : 'Zurück';
+        return Array.from(document.querySelectorAll('a')).find(el => el.innerText?.includes(textMatch)) || null;
+    },
+
     init() {
         document.addEventListener('keydown', (e) => {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -9,12 +33,10 @@ const KANavigation = {
 
             // --- Pagination (A/D) ---
             if (key === 'd') { // Nächste Seite
-                const nextBtn = document.querySelector('.pagination-next') || 
-                                Array.from(document.querySelectorAll('a')).find(el => el.innerText.includes('Nächste'));
+                const nextBtn = this.findPaginationLink('next');
                 if (nextBtn) nextBtn.click();
             } else if (key === 'a') { // Vorherige Seite
-                const prevBtn = document.querySelector('.pagination-prev') || 
-                                Array.from(document.querySelectorAll('a')).find(el => el.innerText.includes('Zurück'));
+                const prevBtn = this.findPaginationLink('prev');
                 if (prevBtn) prevBtn.click();
             }
 
@@ -29,7 +51,7 @@ const KANavigation = {
         });
     },
 
-        updateVisibleAds() {
+    updateVisibleAds() {
         // Collect all currently visible ads in the DOM independently of RentalAnalyzer
         const ads = Array.from(document.querySelectorAll('article.aditem')).filter(ad => {
             const style = window.getComputedStyle(ad);
@@ -56,4 +78,3 @@ const KANavigation = {
     }
 };
 KAFeatureManager.register('WasdNavigation', () => KANavigation.init());
-
