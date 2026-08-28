@@ -38,13 +38,23 @@ KAFeatureManager.register('HighResZoom', () => {
     //                          $_2      200 x  87
     //                          $_9      200 x  87
     //
-    // -> $_57 ist die groesste verfuegbare Aufloesung (fuer die Hover-Galerie/"max"),
-    //    $_86 ein guter Kompromiss fuer die sofortige, scharfe Listen-Vorschau ("list"),
-    //    ohne bei jeder Anzeige gleich das volle 1600px-Bild laden zu muessen.
-    //    Alle anderen Regel-Nummern (34+ nicht getestete Werte zwischen 0-100 liefern
-    //    404/Fehler) sind kleiner. Falls Kleinanzeigen das CDN-Schema aendert, muss
-    //    dieser Test wiederholt werden (Skript siehe Projekt-Notizen "HighResZoom Test").
-    const CACHE_RULES = { list: '$_86.AUTO', max: '$_57.AUTO' };
+    // -> $_57 ist die groesste verfuegbare Aufloesung, aber fuer den Hover-Overlay
+    //    (per CSS auf max-width: 800px gedeckelt) reine Verschwendung: 224 KB pro Bild,
+    //    und showGallery() laedt bis zu 4 Bilder pro Hover (Haupt- + 3 Detailbilder) ->
+    //    bis zu ~900 KB fuer einen einzigen Hover. Reale Dateigroessen gemessen
+    //    (28.08.2026, selbes Testbild):
+    //      $_57  1600x694   224 KB
+    //      $_45  1200x521   113 KB  <- gewaehlt fuer "max"
+    //      $_86  1024x444    81 KB  <- "list"
+    //      $_32  1000x434    78 KB
+    //      $_59   960x416    71 KB
+    //    $_45 deckt die 800px-Anzeigebreite noch bis 1.5x Pixeldichte scharf ab,
+    //    halbiert aber die Dateigroesse ggue. $_57 fast komplett. $_86 bleibt fuer
+    //    "list" unveraendert, da via IntersectionObserver im Hintergrund vorgeladen
+    //    wird und die 81 KB dort nichts blockieren. Falls Kleinanzeigen das
+    //    CDN-Schema aendert, muss der Test wiederholt werden (Skript siehe
+    //    Projekt-Notizen "HighResZoom CDN-Aufloesungsregeln (Test-Ergebnis)").
+    const CACHE_RULES = { list: '$_86.AUTO', max: '$_45.AUTO' };
 
     // 2. Smart Preloader via IntersectionObserver
     const preloadObserver = new IntersectionObserver((entries, obs) => {
