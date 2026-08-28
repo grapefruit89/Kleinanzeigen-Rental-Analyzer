@@ -2,9 +2,24 @@ const KANavigation = {
     currentIndex: -1,
     visibleAds: [],
 
+    // Primär: aria-label (Stand 2026, aktuelles Astro/Tailwind-Frontend).
+    // Fallback: alte Klassen/Text-Suche, falls Kleinanzeigen die Pagination nochmal umbaut.
     findPaginationLink(kind) {
-        const label = kind === 'next' ? 'Nächste' : 'Zurück';
-        return document.querySelector(`a[aria-label="${label}"]`);
+        const ariaLabels = kind === 'next'
+            ? ['Nächste', 'nächste Seite', 'Next']
+            : ['Zurück', 'Vorherige', 'vorherige Seite', 'Previous'];
+
+        for (const label of ariaLabels) {
+            const el = document.querySelector(`a[aria-label="${label}"]`);
+            if (el) return el;
+        }
+
+        const legacySelector = kind === 'next' ? '.pagination-next' : '.pagination-prev';
+        const legacyEl = document.querySelector(legacySelector);
+        if (legacyEl) return legacyEl;
+
+        const textMatch = kind === 'next' ? 'Nächste' : 'Zurück';
+        return Array.from(document.querySelectorAll('a')).find(el => el.innerText?.includes(textMatch)) || null;
     },
 
     init() {
