@@ -1,0 +1,110 @@
+/* ProAdManager - Base Display Logic */
+body.ka-feature-proadmanager li.ad-listitem.ka-pro-hidden {
+    display: none !important;
+}
+
+body.ka-feature-proadmanager.ka-show-pro li.ad-listitem.ka-pro-hidden {
+    display: list-item !important;
+    border: none !important;
+    margin-bottom: 10px !important;
+    padding: 0 !important;
+}
+
+body.ka-feature-proadmanager.ka-show-pro li.ad-listitem.ka-pro-hidden article.aditem {
+    opacity: 1 !important;
+    background-color: rgba(89, 50, 173, 0.2) !important;
+    border: 1px solid #5932ad !important;
+    box-shadow: none !important;
+    border-radius: 4px !important;
+}
+
+/* Dashboard Layout */
+body.ka-feature-proadmanager #ka-dashboard-container {
+    margin: 0 0 15px 0;
+    background: #fff;
+    border: 1px solid #d5d5d5;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: "Martel Sans", sans-serif;
+    border-radius: 4px;
+}
+
+body.ka-feature-proadmanager #ka-dashboard-text {
+    font-size: 14px;
+    color: #333;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+/* Badge Style */
+body.ka-feature-proadmanager .ka-dashboard-badge {
+    background-color: #5932ad;
+    color: #fff;
+    padding: 2px 6px;
+    font-size: 11px;
+    font-weight: bold;
+    border-radius: 3px;
+    line-height: 1;
+    display: inline-block;
+    flex-shrink: 0;
+    transition: background-color 0.2s ease;
+}
+
+/* BUTTON DESIGN */
+body.ka-feature-proadmanager #ka-dashboard-btn {
+    position: relative;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 200px;
+    height: 38px;
+    padding: 0;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    border-radius: 999px;
+    background-color: #ffffff !important;
+    color: #5932ad !important;
+    border: 2px solid #5932ad !important;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+body.ka-feature-proadmanager #ka-dashboard-btn > * { pointer-events: none; }
+body.ka-feature-proadmanager #ka-dashboard-btn .ka-dashboard-badge { margin-right: 8px; }
+body.ka-feature-proadmanager .ka-btn-label { min-width: 85px; text-align: left; }
+
+/* ZUSTAND 1: NICHT GEDRÜCKT (Profis sichtbar) */
+body.ka-feature-proadmanager.ka-show-pro #ka-dashboard-btn {
+    box-shadow: 0 6px 14px rgba(0,0,0,0.25) !important;
+    transform: translateY(0) !important;
+}
+
+body.ka-feature-proadmanager.ka-show-pro #ka-dashboard-btn:hover {
+    background-color: #ffffff !important;
+    border-color: #7f5bc4 !important;
+    color: #7f5bc4 !important;
+    box-shadow: 0 6px 14px rgba(0,0,0,0.25) !important;
+}
+
+body.ka-feature-proadmanager.ka-show-pro #ka-dashboard-btn:hover .ka-dashboard-badge {
+    background-color: #7f5bc4 !important;
+}
+
+/* ZUSTAND 2: GEDRÜCKT (Filter AN) */
+body.ka-feature-proadmanager:not(.ka-show-pro) #ka-dashboard-btn {
+    background-color: #eeeeee !important;
+    box-shadow: inset 0 2px 5px rgba(0,0,0,0.2) !important;
+    transform: translateY(2px) !important;
+    border-color: #7c6eb0 !important;
+    color: #5932ad !important;
+}
+
+body.ka-feature-proadmanager:not(.ka-show-pro) #ka-dashboard-btn .ka-dashboard-badge {
+    opacity: 0.8;
+    background-color: #5932ad;
+}

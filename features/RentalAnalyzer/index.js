@@ -141,4 +141,5 @@ const KleinanzeigenAnalyzer = {
         observer.observe(document.body, { childList: true, subtree: true });
     }
 };
-KleinanzeigenAnalyzer.init();
+KAFeatureManager.register('RentalAnalyzer', () => KleinanzeigenAnalyzer.init());
+

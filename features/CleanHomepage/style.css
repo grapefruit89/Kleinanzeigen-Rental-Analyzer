@@ -1,0 +1,11 @@
+/* Startseite: Kategorien, Feature-Angebote und ähnliche Inhaltsblöcke ausblenden */
+body.ka-feature-cleanhomepage #feature-offer-section {
+    display: none !important;
+}
+
+/* "Feedback geben" Astro-Island ausblenden */
+body.ka-feature-cleanhomepage li:has(astro-island[component-url*="FeedItemTile"]) {
+    display: none !important;
+}
+
+

@@ -19,6 +19,7 @@ const KANavigation = {
             }
 
             // --- Ad-Navigation (W/S) ---
+            this.updateVisibleAds();
             if (this.visibleAds.length === 0) return;
             if (key === 's') { // Runter
                 this.navigateAds(1);
@@ -28,10 +29,15 @@ const KANavigation = {
         });
     },
 
-    updateVisibleAds(ads) {
+        updateVisibleAds() {
+        // Collect all currently visible ads in the DOM independently of RentalAnalyzer
+        const ads = Array.from(document.querySelectorAll('article.aditem')).filter(ad => {
+            const style = window.getComputedStyle(ad);
+            return style.display !== 'none' && style.visibility !== 'hidden';
+        });
         this.visibleAds = ads;
         this.currentIndex = -1;
-    },
+    },,
 
     navigateAds(direction) {
         if (this.currentIndex >= 0 && this.visibleAds[this.currentIndex]) {
@@ -49,4 +55,5 @@ const KANavigation = {
         }
     }
 };
-KANavigation.init();
+KAFeatureManager.register('WasdNavigation', () => KANavigation.init());
+

@@ -1,21 +1,37 @@
 {
   "manifest_version": 3,
   "name": "Kleinanzeigen Rental Analyzer",
-  "version": "1.0.0",
-  "description": "Analyse-Tool für Mietpreise auf Kleinanzeigen.de",
+  "version": "2.0.0",
+  "description": "Modulares Analyse-Tool & UI-Verbesserungen für Kleinanzeigen.de",
   "permissions": [
-    "storage"
+    "storage",
+    "activeTab",
+    "declarativeNetRequest",
+    "declarativeNetRequestFeedback"
   ],
   "host_permissions": [
     "https://www.kleinanzeigen.de/*"
   ],
+  "background": {
+    "service_worker": "core/background.js"
+  },
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "ruleset_1",
+        "enabled": true,
+        "path": "rules.json"
+      }
+    ]
+  },
   "action": {
     "default_icon": {
-      "128": "icons/icon.svg"
-    }
+      "128": "icons/icon128.png"
+    },
+    "default_popup": "popup/popup.html"
   },
   "icons": {
-    "128": "icons/icon.svg"
+    "128": "icons/icon128.png"
   },
   "content_scripts": [
     {
@@ -23,17 +39,58 @@
         "https://www.kleinanzeigen.de/*"
       ],
       "js": [
-        "lib/storage.js",
-        "lib/parser.js",
-        "lib/stats.js",
-        "content/ui.js",
-        "content/navigation.js",
-        "content/main.js"
+        "core/Storage.js",
+        "core/FeatureManager.js",
+        
+        "features/RentalAnalyzer/parser.js",
+        "features/RentalAnalyzer/stats.js",
+        "features/RentalAnalyzer/ui.js",
+        "features/RentalAnalyzer/index.js",
+        
+        "features/WasdNavigation/index.js",
+        "features/UiCleaner/index.js",
+        "features/HighResZoom/index.js",
+        "features/SortSaver/index.js",
+        "features/WidescreenLayout/index.js",
+        "features/AutoShowMore/index.js",
+        "features/CleanHomepage/index.js",
+        "features/ProAdManager/index.js",
+        "features/DataExport/index.js",
+        "features/McpBridge/index.js",
+        "features/InPageMenu/index.js"
       ],
       "css": [
-        "content/styles.css"
-      ],
+        "features/RentalAnalyzer/style.css",
+        "features/UiCleaner/style.css",
+        "features/WidescreenLayout/style.css",
+        "features/HighResZoom/style.css",
+        "features/CleanHomepage/style.css",
+        "features/ProAdManager/style.css",
+        "features/DataExport/style.css",
+        "features/InPageMenu/style.css"
+            ],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.kleinanzeigen.de/*"
+      ],
+      "js": [
+        "features/InPageMenu/index.js"
+      ],
+      "css": [
+        "features/InPageMenu/style.css"
+      ],
+      "run_at": "document_start"
     }
   ]
 }
+
+
+
+
+
+
+
+
+

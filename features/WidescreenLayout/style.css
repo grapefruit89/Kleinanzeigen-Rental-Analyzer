@@ -1,0 +1,10 @@
+body.ka-feature-widescreenlayout .l-page-wrapper, 
+body.ka-feature-widescreenlayout #site-content {
+    max-width: 1600px !important; /* Gesundes Widescreen-Layout statt kaputten %-Werten */
+}
+
+/* Verhindere, dass Flexboxen durch zu große Container platzen */
+body.ka-feature-widescreenlayout .site-base {
+    max-width: 100% !important;
+    overflow-x: hidden;
+}

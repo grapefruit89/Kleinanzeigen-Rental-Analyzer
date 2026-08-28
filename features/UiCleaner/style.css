@@ -1,0 +1,21 @@
+/* Top-Anzeigen ausblenden (optional) */
+body.ka-feature-uicleaner article.aditem:has(.badge-topad), 
+body.ka-feature-uicleaner article.aditem:has(.is-topad) {
+    display: none !important;
+}
+
+/* Zusätzliche harte Werbe-Block-Regeln (Tier 1) aus Tampermonkey Skript */
+body.ka-feature-uicleaner .site-base--left-banner,
+body.ka-feature-uicleaner .site-base--right-banner,
+body.ka-feature-uicleaner #btf-billboard,
+body.ka-feature-uicleaner div[data-liberty-position-name="home-billboard"],
+body.ka-feature-uicleaner div[data-liberty-position-name="srpb-middle"],
+body.ka-feature-uicleaner li.ad-listitem div[data-liberty-position-name],
+body.ka-feature-uicleaner li.ad-listitem.badge-topad.is-topad,
+body.ka-feature-uicleaner #brws_banner-supersize,
+body.ka-feature-uicleaner #viewad-sidebar-banner,
+body.ka-feature-uicleaner #vip-billboard,
+body.ka-feature-uicleaner #pstrads-atf-728x90,
+body.ka-feature-uicleaner #srp-skyscraper-btf {
+    display: none !important;
+}
