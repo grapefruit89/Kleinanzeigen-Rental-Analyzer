@@ -3,7 +3,7 @@ KAFeatureManager.register('McpBridge', () => {
 
     // Wir injizieren den Code direkt in die echte Webseite (Main World),
     // da Chrome-Erweiterungen (Content Scripts) oft keinen Zugriff auf neue experimentelle navigator-APIs haben.
-    const scriptCode = \
+    const scriptCode = `
         function registerNativeWebMCP() {
             const mcpContext = navigator.modelContext || document.modelContext || window.modelContext;
             
@@ -34,7 +34,7 @@ KAFeatureManager.register('McpBridge', () => {
         } catch(e) {
             console.error('[KA WebMCP] Failed to register native tool:', e);
         }
-    \;
+    `;
 
     const script = document.createElement('script');
     script.textContent = scriptCode;

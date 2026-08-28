@@ -37,7 +37,7 @@ const KANavigation = {
         });
         this.visibleAds = ads;
         this.currentIndex = -1;
-    },,
+    },
 
     navigateAds(direction) {
         if (this.currentIndex >= 0 && this.visibleAds[this.currentIndex]) {
