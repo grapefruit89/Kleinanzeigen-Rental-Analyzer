@@ -22,10 +22,21 @@ KAFeatureManager.register('AutoShowMore', () => {
         return false;
     }
 
+    // Debounce: Auf der Startseite mutiert document.body staendig durch Werbung,
+    // Tracking-Skripte und nachladende Feed-Elemente, voellig unabhaengig vom
+    // 'Mehr anzeigen'-Button. Ohne Debounce wuerde attemptClickMoreButton() bei
+    // jeder dieser Mutationen sofort ausgefuehrt (gleiches Muster, das schon bei
+    // SortSaver und HighResZoom zu Freezes gefuehrt hat). Klickt trotzdem nur
+    // einmal, danach wird disconnected -- kein Risiko einer Klick-Endlosschleife,
+    // aber das ungebremste Scannen selbst war schon das Problem.
+    let debounceTimer = null;
     moreButtonObserver = new MutationObserver(() => {
-        if (attemptClickMoreButton()) {
-            moreButtonObserver.disconnect();
-        }
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+            if (attemptClickMoreButton()) {
+                moreButtonObserver.disconnect();
+            }
+        }, 400);
     });
 
     moreButtonObserver.observe(document.body, {

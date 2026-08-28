@@ -142,14 +142,25 @@
         injectHamburger();
     }
 
-    // Observer für den Fall, dass React/Astro den Header neu rendert
-        function initObserver() {
+    // Observer für den Fall, dass React/Astro den Header neu rendert.
+    // Debounce: dieser Observer laeuft auf JEDER Seite dauerhaft (nie disconnected)
+    // und beobachtet document.documentElement (noch groesser als document.body,
+    // schliesst also auch <head>-Mutationen ein). Ohne Debounce feuert er bei
+    // jeder Mutation irgendwo auf der Seite, egal wie klein oder irrelevant fuer
+    // den Header -- gleiches Risiko-Muster wie bei SortSaver/HighResZoom/
+    // AutoShowMore. injectHamburger() selbst ist zwar dank fruehem Return billig,
+    // sobald der Button existiert, aber das Debounce reduziert trotzdem die
+    // Anzahl der Aufrufe drastisch, besonders auf Seiten mit vielen Mutationen
+    // pro Sekunde (z.B. die Startseite).
+    function initObserver() {
         if (!document.documentElement) {
             setTimeout(initObserver, 50);
             return;
         }
+        let debounceTimer = null;
         const observer = new MutationObserver(() => {
-            injectHamburger();
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(injectHamburger, 400);
         });
         observer.observe(document.documentElement, { childList: true, subtree: true });
     }
