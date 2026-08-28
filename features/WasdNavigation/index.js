@@ -2,24 +2,44 @@ const KANavigation = {
     currentIndex: -1,
     visibleAds: [],
 
-    // Primär: aria-label (Stand 2026, aktuelles Astro/Tailwind-Frontend).
-    // Fallback: alte Klassen/Text-Suche, falls Kleinanzeigen die Pagination nochmal umbaut.
-    findPaginationLink(kind) {
-        const ariaLabels = kind === 'next'
-            ? ['Nächste', 'nächste Seite', 'Next']
-            : ['Zurück', 'Vorherige', 'vorherige Seite', 'Previous'];
+    // Kleinanzeigen rendert den Nächste/Zurück-Button je nach Zustand unterschiedlich:
+    // - meistens als <a aria-label="Nächste"|"Zurück" href="..."> -- normal klickbar.
+    // - manchmal (z.B. am Rand der "..."-Pagination) als <span title="Nächste"|"Zurück"
+    //   data-url="..." aria-hidden="true"> -- KEIN echter Link, .click() tut nichts,
+    //   man muss selbst zur data-url navigieren.
+    // Primär: aria-label / title. Fallback: alte Klassen/Text-Suche als Sicherheitsnetz,
+    // falls Kleinanzeigen die Struktur nochmal ändert.
+    findPaginationElement(kind) {
+        const label = kind === 'next' ? 'Nächste' : 'Zurück';
 
-        for (const label of ariaLabels) {
-            const el = document.querySelector(`a[aria-label="${label}"]`);
-            if (el) return el;
-        }
+        const byAria = document.querySelector(`a[aria-label="${label}"]`);
+        if (byAria) return byAria;
 
+        const byTitleDataUrl = document.querySelector(`[title="${label}"][data-url]`);
+        if (byTitleDataUrl) return byTitleDataUrl;
+
+        // Legacy-Fallback (alte Kleinanzeigen-Struktur)
         const legacySelector = kind === 'next' ? '.pagination-next' : '.pagination-prev';
         const legacyEl = document.querySelector(legacySelector);
         if (legacyEl) return legacyEl;
 
-        const textMatch = kind === 'next' ? 'Nächste' : 'Zurück';
-        return Array.from(document.querySelectorAll('a')).find(el => el.innerText?.includes(textMatch)) || null;
+        return Array.from(document.querySelectorAll('a')).find(el => el.innerText?.includes(label)) || null;
+    },
+
+    navigateTo(el) {
+        if (!el) return;
+        const href = el.getAttribute && el.getAttribute('href');
+        if (href) {
+            el.click();
+            return;
+        }
+        const dataUrl = el.getAttribute && el.getAttribute('data-url');
+        if (dataUrl) {
+            window.location.href = dataUrl;
+            return;
+        }
+        // Letzter Versuch: normaler Klick, falls die Seite einen eigenen Handler hat
+        el.click?.();
     },
 
     init() {
@@ -29,11 +49,9 @@ const KANavigation = {
 
             // --- Pagination (A/D) ---
             if (key === 'd') { // Nächste Seite
-                const nextBtn = this.findPaginationLink('next');
-                if (nextBtn) nextBtn.click();
+                this.navigateTo(this.findPaginationElement('next'));
             } else if (key === 'a') { // Vorherige Seite
-                const prevBtn = this.findPaginationLink('prev');
-                if (prevBtn) prevBtn.click();
+                this.navigateTo(this.findPaginationElement('prev'));
             }
 
             // --- Ad-Navigation (W/S) ---
