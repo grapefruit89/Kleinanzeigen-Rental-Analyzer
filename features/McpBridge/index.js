@@ -1,47 +1,33 @@
 KAFeatureManager.register('McpBridge', () => {
     'use strict';
 
-    let ws = null;
-    let isConnecting = false;
-
-    function connect() {
-        if (isConnecting || (ws && ws.readyState === WebSocket.OPEN)) return;
-        isConnecting = true;
-
-        ws = new WebSocket('ws://localhost:8765');
-
-        ws.onopen = () => {
-            console.log('[KA MCP Bridge] Connected to local AI server');
-            isConnecting = false;
-        };
-
-        ws.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                if (data.action === 'get_html') {
-                    // Send back the DOM
-                    ws.send(JSON.stringify({
-                        type: 'page_data',
-                        html: document.documentElement.outerHTML
-                    }));
+    // --- NATIVE WebMCP (Chrome DevTools) ---
+    // If Chrome natively supports WebMCP via navigator.modelContext
+    function registerNativeWebMCP() {
+        const mcpContext = navigator.modelContext || document.modelContext;
+        if (mcpContext && typeof mcpContext.registerTool === 'function') {
+            console.log('[KA WebMCP] Native WebMCP API found! Registering tool...');
+            mcpContext.registerTool({
+                name: 'get_kleinanzeigen_page',
+                description: 'Fetch the HTML of the currently open Kleinanzeigen tab',
+                inputSchema: {
+                    type: 'object',
+                    properties: {},
+                    required: []
                 }
-            } catch (e) {
-                console.error('[KA MCP Bridge] Error processing message:', e);
-            }
-        };
-
-        ws.onclose = () => {
-            isConnecting = false;
-            // Try to reconnect every 5 seconds
-            setTimeout(connect, 5000);
-        };
-
-        ws.onerror = () => {
-            ws.close();
-        };
+            }, async (params) => {
+                console.log('[KA WebMCP] AI invoked get_kleinanzeigen_page natively');
+                return {
+                    content: [{ type: 'text', text: document.documentElement.outerHTML }]
+                };
+            });
+        }
     }
-
-    // Start connection attempts
-    connect();
+    
+    // Attempt registration
+    try {
+        registerNativeWebMCP();
+    } catch(e) {
+        console.error('[KA WebMCP] Failed to register native tool:', e);
+    }
 });
-
