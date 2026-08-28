@@ -14,6 +14,36 @@ KAFeatureManager.register('HighResZoom', () => {
 
     let hoverTimer = null;
     let currentAbortController = null;
+
+    // Kleinanzeigen liefert Bilder ueber img.kleinanzeigen.de/api/v1/prod-ads/images/..
+    // ?rule=$_XX.AUTO aus, wobei XX eine von einem festen Satz vordefinierter
+    // CDN-Groessenregeln ist (kein linearer Zusammenhang zur Nummer!). Empirisch
+    // ermittelt (Konsolentest ueber alle Regeln $_0 bis $_100 gegen ein reales
+    // Anzeigenbild, 28.08.2026):
+    //
+    //   Regel   Aufloesung     Regel   Aufloesung     Regel   Aufloesung
+    //   $_57    1600 x 694     $_58     640 x 278     $_18     200 x  87
+    //   $_45    1200 x 521     $_12     500 x 217     $_37     175 x  76
+    //   $_86    1024 x 444     $_21     500 x 217     $_7      150 x  65
+    //   $_32    1000 x 434     $_72     500 x 217     $_26     140 x  60
+    //   $_59     960 x 416     $_75     430 x 187     $_56     100 x  43
+    //   $_3      800 x 347     $_1      400 x 174     $_0       96 x  41
+    //   $_20     800 x 347     $_16     400 x 174     $_97      90 x  39
+    //   $_85     726 x 315     $_19     400 x 174     $_23      80 x  34
+    //   $_27     640 x 278     $_8      300 x 130     $_6       70 x  30
+    //                          $_35     300 x 130     $_14      64 x  28
+    //                          $_24     298 x 129     $_22      60 x  26
+    //                          $_62     225 x  97     $_34      50 x  22
+    //                          $_90     220 x  95     $_39      32 x  14
+    //                          $_2      200 x  87
+    //                          $_9      200 x  87
+    //
+    // -> $_57 ist die groesste verfuegbare Aufloesung (fuer die Hover-Galerie/"max"),
+    //    $_86 ein guter Kompromiss fuer die sofortige, scharfe Listen-Vorschau ("list"),
+    //    ohne bei jeder Anzeige gleich das volle 1600px-Bild laden zu muessen.
+    //    Alle anderen Regel-Nummern (34+ nicht getestete Werte zwischen 0-100 liefern
+    //    404/Fehler) sind kleiner. Falls Kleinanzeigen das CDN-Schema aendert, muss
+    //    dieser Test wiederholt werden (Skript siehe Projekt-Notizen "HighResZoom Test").
     const CACHE_RULES = { list: '$_86.AUTO', max: '$_57.AUTO' };
 
     // 2. Smart Preloader via IntersectionObserver
