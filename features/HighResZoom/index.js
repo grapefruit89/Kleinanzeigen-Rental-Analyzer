@@ -194,16 +194,26 @@ KAFeatureManager.register('HighResZoom', () => {
 
     // Run initially and observe mutations
     processThumbnails();
-    
+
+    // WICHTIG: kein ungebremster Observer! Auf Seiten ohne #srchrslt-adtable/.itemlist
+    // (z.B. die Startseite mit dem Feed-Grid) faellt der Container auf document.body
+    // zurueck -- dort mutiert staendig irgendwas (Werbung, Tracking-Skripte, nachladende
+    // Feed-Elemente), voellig unabhaengig von neuen Anzeigenbildern. Ohne Debounce
+    // wuerde processThumbnails() (voller Rescan der Seite + pro Bild eine Card-Suche)
+    // bei jeder dieser Mutationen sofort erneut laufen und den Tab lahmlegen. Debounce
+    // nach demselben Muster wie der SortSaver-Freeze-Fix.
+    let debounceTimer = null;
     const observer = new MutationObserver((mutations) => {
+        let hasAddedNodes = false;
         for (const m of mutations) {
-            if (m.addedNodes.length > 0) {
-                processThumbnails();
-                break;
-            }
+            if (m.addedNodes.length > 0) { hasAddedNodes = true; break; }
         }
+        if (!hasAddedNodes) return;
+
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(processThumbnails, 400);
     });
-    
+
     const adListContainer = document.querySelector('#srchrslt-adtable, .itemlist') || document.body;
     observer.observe(adListContainer, { childList: true, subtree: true });
 });
