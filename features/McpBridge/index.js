@@ -1,43 +1,61 @@
 KAFeatureManager.register('McpBridge', () => {
     'use strict';
 
-    // Wir injizieren den Code direkt in die echte Webseite (Main World),
-    // da Chrome-Erweiterungen (Content Scripts) oft keinen Zugriff auf neue experimentelle navigator-APIs haben.
-    const scriptCode = `
-        function registerNativeWebMCP() {
-            const mcpContext = navigator.modelContext || document.modelContext || window.modelContext;
-            
-            if (mcpContext && typeof mcpContext.registerTool === 'function') {
-                console.log('[KA WebMCP] Native WebMCP API found! Registering tool...');
-                mcpContext.registerTool({
-                    name: 'get_kleinanzeigen_page',
-                    description: 'Fetch the HTML of the currently open Kleinanzeigen tab',
-                    inputSchema: {
-                        type: 'object',
-                        properties: {},
-                        required: []
-                    }
-                }, async (params) => {
-                    console.log('[KA WebMCP] AI invoked get_kleinanzeigen_page natively');
-                    return {
-                        content: [{ type: 'text', text: document.documentElement.outerHTML }]
-                    };
-                });
-                console.log('[KA WebMCP] Tool get_kleinanzeigen_page successfully registered!');
-            } else {
-                console.warn('[KA WebMCP] navigator.modelContext API not found in this browser context.');
-            }
-        }
-        
-        try {
-            registerNativeWebMCP();
-        } catch(e) {
-            console.error('[KA WebMCP] Failed to register native tool:', e);
-        }
-    `;
+    let ws = null;
+    let isConnecting = false;
+    let reconnectTimer = null;
 
-    const script = document.createElement('script');
-    script.textContent = scriptCode;
-    (document.head || document.documentElement).appendChild(script);
-    script.remove(); // Aufräumen, nachdem der Code ausgeführt wurde
+    function connect() {
+        if (isConnecting || (ws && ws.readyState === WebSocket.OPEN)) return;
+        isConnecting = true;
+
+        try {
+            ws = new WebSocket('ws://localhost:8765');
+        } catch (e) {
+            isConnecting = false;
+            scheduleReconnect();
+            return;
+        }
+
+        ws.onopen = () => {
+            console.log('[KA MCP Bridge] Verbunden mit lokalem MCP-Server.');
+            isConnecting = false;
+        };
+
+        ws.onmessage = (event) => {
+            let data;
+            try {
+                data = JSON.parse(event.data);
+            } catch (e) {
+                console.error('[KA MCP Bridge] Konnte Nachricht nicht parsen:', e);
+                return;
+            }
+
+            if (data.action === 'get_html') {
+                ws.send(JSON.stringify({
+                    type: 'page_data',
+                    requestId: data.requestId,
+                    html: document.documentElement.outerHTML
+                }));
+            }
+        };
+
+        ws.onclose = () => {
+            isConnecting = false;
+            scheduleReconnect();
+        };
+
+        ws.onerror = () => {
+            // onclose feuert danach ohnehin; hier nur sauber schließen
+            try { ws.close(); } catch (e) {}
+        };
+    }
+
+    function scheduleReconnect() {
+        clearTimeout(reconnectTimer);
+        // Alle 5s neu versuchen -- harmlos, wenn kein lokaler Server läuft
+        reconnectTimer = setTimeout(connect, 5000);
+    }
+
+    connect();
 });
