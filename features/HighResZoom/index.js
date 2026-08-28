@@ -54,7 +54,7 @@ KAFeatureManager.register('HighResZoom', () => {
     //    wird und die 81 KB dort nichts blockieren. Falls Kleinanzeigen das
     //    CDN-Schema aendert, muss der Test wiederholt werden (Skript siehe
     //    Projekt-Notizen "HighResZoom CDN-Aufloesungsregeln (Test-Ergebnis)").
-    const CACHE_RULES = { list: '$_86.AUTO', max: '$_45.AUTO' };
+    const CACHE_RULES = { list: 'rule=$_86.AUTO', max: 'rule=$_45.AUTO' };
 
     // 2. Smart Preloader via IntersectionObserver
     const preloadObserver = new IntersectionObserver((entries, obs) => {
@@ -83,20 +83,21 @@ KAFeatureManager.register('HighResZoom', () => {
     // Robuster Anker ist der Link zur Detailseite (<a href="/s-anzeige/...">), der
     // in allen bisher beobachteten Varianten das Bild umschliesst.
     function findAdContext(img) {
+        // Wichtig: das <img> liegt nicht immer INNERHALB des Links zur Anzeige!
+        // Im Startseiten-Feed-Grid (data-testid="ad-tile-image-wrapper") z.B. ist
+        // das Bild ein Geschwisterelement des <a>, nicht dessen Kind -- die ganze
+        // Karte wirkt nur optisch klickbar (per CSS ::after-Overlay-Trick auf dem
+        // Link). Deshalb zuerst die Karte (li/article) suchen und DARIN nach dem
+        // Anzeigen-Link suchen, statt direkt vom Bild nach oben zum <a> zu laufen.
+        const card = img.closest('li, article.aditem');
+        if (card) {
+            const link = card.querySelector('a[href^="/s-anzeige/"]') ||
+                         card.querySelector('a.aditem-main--middle--price-shipping--price');
+            if (link) return { hoverTarget: card, link: link.href };
+        }
+        // Fallback: kein li/article gefunden, aber das Bild liegt direkt in einem Link.
         const anchor = img.closest('a[href^="/s-anzeige/"]');
-        if (anchor) {
-            // Hover-Ziel ist im Idealfall die ganze Karte (li/article), damit man
-            // nicht nur beim Hover exakt ueber dem Bild die Galerie sieht.
-            const card = anchor.closest('li, article.aditem') || anchor;
-            return { hoverTarget: card, link: anchor.href };
-        }
-        // Sicherheitsnetz: alte Struktur, falls der Link mal nicht ums Bild liegt.
-        const legacyAd = img.closest('li.ad-listitem, article.aditem');
-        if (legacyAd) {
-            const legacyLink = legacyAd.querySelector('a.aditem-main--middle--price-shipping--price') ||
-                                legacyAd.querySelector('a[href^="/s-anzeige/"]');
-            if (legacyLink) return { hoverTarget: legacyAd, link: legacyLink.href };
-        }
+        if (anchor) return { hoverTarget: anchor, link: anchor.href };
         return null;
     }
 
