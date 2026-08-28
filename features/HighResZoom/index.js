@@ -73,33 +73,58 @@ KAFeatureManager.register('HighResZoom', () => {
     }, { rootMargin: "600px" });
 
     // 3. Process thumbnails
+    //
+    // Kleinanzeigen benutzt je nach Kategorie/Layout-Version unterschiedliche
+    // Karten-Strukturen fuer dieselben Anzeigenbilder:
+    //  - alt:      <li class="ad-listitem"> ... <article class="aditem"> ... <img>
+    //  - neu (A):  <li> (OHNE ad-listitem-Klasse) > <article class="flex..."> > <a> > <img>
+    //  - neu (B):  <div data-testid="ad-tile-image-wrapper"> > <img>  (Kachel-Grid)
+    // Klassennamen und Container-Tags sind also kein verlaesslicher Anker mehr.
+    // Robuster Anker ist der Link zur Detailseite (<a href="/s-anzeige/...">), der
+    // in allen bisher beobachteten Varianten das Bild umschliesst.
+    function findAdContext(img) {
+        const anchor = img.closest('a[href^="/s-anzeige/"]');
+        if (anchor) {
+            // Hover-Ziel ist im Idealfall die ganze Karte (li/article), damit man
+            // nicht nur beim Hover exakt ueber dem Bild die Galerie sieht.
+            const card = anchor.closest('li, article.aditem') || anchor;
+            return { hoverTarget: card, link: anchor.href };
+        }
+        // Sicherheitsnetz: alte Struktur, falls der Link mal nicht ums Bild liegt.
+        const legacyAd = img.closest('li.ad-listitem, article.aditem');
+        if (legacyAd) {
+            const legacyLink = legacyAd.querySelector('a.aditem-main--middle--price-shipping--price') ||
+                                legacyAd.querySelector('a[href^="/s-anzeige/"]');
+            if (legacyLink) return { hoverTarget: legacyAd, link: legacyLink.href };
+        }
+        return null;
+    }
+
     function processThumbnails() {
-        document.querySelectorAll('li.ad-listitem').forEach(ad => {
-            if (ad.dataset.kaZoomBound) return;
-            ad.dataset.kaZoomBound = 'true';
+        document.querySelectorAll('img[src*="kleinanzeigen.de/api/v1/prod-ads/images/"]').forEach(img => {
+            const ctx = findAdContext(img);
+            if (!ctx || ctx.hoverTarget.dataset.kaZoomBound) return;
+            ctx.hoverTarget.dataset.kaZoomBound = 'true';
 
-            const img = ad.querySelector('img[src*="kleinanzeigen.de/api/v1/prod-ads/images/"]');
-            if (img) {
-                // Instantly set list to sharp medium resolution
-                const origSrc = img.src;
-                if (!origSrc.includes(CACHE_RULES.list)) {
-                    img.src = origSrc.replace(/rule=\$_\d+\.AUTO/, CACHE_RULES.list);
-                    if (img.srcset) img.removeAttribute('srcset');
-                }
-
-                // Add to smart preloader
-                preloadObserver.observe(img);
-
-                const maxSrc = origSrc.replace(/rule=\$_\d+\.AUTO/, CACHE_RULES.max);
-                
-                // Bind hover events
-                ad.addEventListener('mouseenter', () => handleHover(ad, maxSrc));
-                ad.addEventListener('mouseleave', handleLeave);
+            // Instantly set list to sharp medium resolution
+            const origSrc = img.src;
+            if (!origSrc.includes(CACHE_RULES.list)) {
+                img.src = origSrc.replace(/rule=\$_\d+\.AUTO/, CACHE_RULES.list);
+                if (img.srcset) img.removeAttribute('srcset');
             }
+
+            // Add to smart preloader
+            preloadObserver.observe(img);
+
+            const maxSrc = origSrc.replace(/rule=\$_\d+\.AUTO/, CACHE_RULES.max);
+
+            // Bind hover events
+            ctx.hoverTarget.addEventListener('mouseenter', () => handleHover(ctx.link, maxSrc));
+            ctx.hoverTarget.addEventListener('mouseleave', handleLeave);
         });
     }
 
-    function handleHover(adElement, mainImgSrc) {
+    function handleHover(detailLink, mainImgSrc) {
         // Clear previous state
         overlay.innerHTML = '';
         overlay.classList.remove('active');
@@ -108,7 +133,7 @@ KAFeatureManager.register('HighResZoom', () => {
 
         // Wait 250ms to prevent flashing on accidental hover
         hoverTimer = setTimeout(() => {
-            showGallery(adElement, mainImgSrc);
+            showGallery(detailLink, mainImgSrc);
         }, 250);
     }
 
@@ -118,7 +143,7 @@ KAFeatureManager.register('HighResZoom', () => {
         if (currentAbortController) currentAbortController.abort();
     }
 
-    async function showGallery(adElement, mainImgSrc) {
+    async function showGallery(detailLink, mainImgSrc) {
         overlay.classList.add('active');
         
         // 1. Show main image immediately
@@ -127,15 +152,11 @@ KAFeatureManager.register('HighResZoom', () => {
         overlay.appendChild(mainImg);
 
         // 2. Fetch ad detail page to find remaining images
-        const adLink = adElement.querySelector('a.aditem-main--middle--price-shipping--price');
-        const fallbackLink = adElement.querySelector('a[href^="/s-anzeige/"]');
-        const finalLink = fallbackLink ? fallbackLink.href : null;
-
-        if (!finalLink) return;
+        if (!detailLink) return;
 
         currentAbortController = new AbortController();
         try {
-            const response = await fetch(finalLink, { signal: currentAbortController.signal });
+            const response = await fetch(detailLink, { signal: currentAbortController.signal });
             const html = await response.text();
             const doc = new DOMParser().parseFromString(html, 'text/html');
 
