@@ -46,8 +46,8 @@ KAFeatureManager.register('AutoShowMore', () => {
             if (!button) {
                 // Button ist nicht da. Wir warten 50ms und zählen mit.
                 emptyChecks++;
-                // Wenn der Button für 20 Checks (ca. 1 Sekunde) komplett weg bleibt, sind wir fertig.
-                if (emptyChecks >= 20) {
+                // Wenn der Button für 60 Checks (ca. 3 Sekunden) komplett weg bleibt, sind wir fertig.
+                if (emptyChecks >= 60) {
                     console.log(`[KA AutoShowMore] Button ist verschwunden. (Insgesamt ${clickCount}x geklickt). Fertig!`);
                     break;
                 }
