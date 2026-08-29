@@ -66,10 +66,14 @@ KAFeatureManager.register('AutoShowMore', () => {
             emptyChecks = 0;
             clickCount++;
             console.log(`[KA AutoShowMore] Klick ${clickCount} ausgeführt! Warte auf Freigabe...`);
+            
+            // Setzen wir manuell aria-disabled, damit wir im nächsten Loop (in 50ms) 
+            // nicht nochmal klicken, falls React zu langsam ist, um aria-busy zu setzen.
+            button.setAttribute('aria-disabled', 'true');
             button.click();
             
-            // Ganz kurze Pause, damit die Website aria-busy setzen kann
-            await new Promise(r => setTimeout(r, 50));
+            // Etwas länger warten, damit die Website sicher reagieren kann
+            await new Promise(r => setTimeout(r, 300));
         }
     }
 
