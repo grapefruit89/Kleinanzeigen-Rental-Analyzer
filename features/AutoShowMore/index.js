@@ -14,13 +14,14 @@ KAFeatureManager.register('AutoShowMore', () => {
     // Klick-Warte-Schleife: klicken, kurz warten bis nachgeladen ist, pruefen ob
     // der Button noch da ist, ggf. wiederholen -- mit hartem Limit, damit das
     // niemals endlos laeuft, selbst wenn Kleinanzeigen das Verhalten mal aendert.
-    const MAX_CLICKS = 15;               // Sicherheitsnetz -- garantiert kein Unendlich-Klicken
-    const CLICK_WAIT_MS = 900;           // Zeit zum Nachladen nach einem Klick
-    const BUSY_RECHECK_MS = 300;         // kurze Nachpruefung, falls der Button gerade laedt
+    const MAX_LOOPS = 5;               // Sicherheitsnetz -- garantiert kein Unendlich-Klicken
+    const QUICK_CLICK_COUNT = 4;       // So oft wird schnell hintereinander geklickt
+    const QUICK_CLICK_DELAY_MS = 50;   // Kurze Pause zwischen den schnellen Klicks
+    const CHECK_DELAY_MS = 1000;         // Warten nach der 4er-Salve, um zu prüfen ob er noch da ist
     const INITIAL_SEARCH_ATTEMPTS = 10;  // wie oft anfangs auf das Erscheinen des Buttons gewartet wird
     const INITIAL_SEARCH_INTERVAL_MS = 500;
 
-    let clickCount = 0;
+    let loopCount = 0;
 
     function findButton() {
         try {
@@ -35,41 +36,33 @@ KAFeatureManager.register('AutoShowMore', () => {
         }
     }
 
-    function clickLoop() {
-        if (clickCount >= MAX_CLICKS) {
-            console.log(`[KA AutoShowMore] Sicherheitslimit erreicht (${MAX_CLICKS} Klicks), stoppe.`);
+    async function clickRoutine() {
+        if (loopCount >= MAX_LOOPS) {
+            console.log(`[KA AutoShowMore] Sicherheitslimit erreicht (${MAX_LOOPS} Durchläufe), stoppe.`);
             return;
         }
 
-        let button;
-        try {
-            button = findButton();
-        } catch (e) {
-            console.error('[KA AutoShowMore] Fehler bei der Button-Suche, stoppe sicherheitshalber:', e);
-            return;
-        }
-
+        const button = findButton();
         if (!button) {
-            console.log(`[KA AutoShowMore] Kein Button mehr da (nach ${clickCount} Klicks) -- fertig geladen.`);
+            console.log(`[KA AutoShowMore] Kein Button mehr da (nach ${loopCount} Durchläufen) -- fertig geladen.`);
             return;
         }
 
-        try {
-            if (button.getAttribute('aria-busy') === 'true') {
-                // Der aktuelle Batch laedt noch -- kurz erneut pruefen statt zu klicken
-                setTimeout(clickLoop, BUSY_RECHECK_MS);
-                return;
-            }
+        loopCount++;
+        console.log(`[KA AutoShowMore] Button gefunden, feuer ${QUICK_CLICK_COUNT}x Klick-Salve ab (Durchlauf ${loopCount}/${MAX_LOOPS})`);
 
-            clickCount++;
-            console.log(`[KA AutoShowMore] 'Weitere Anzeigen' geklickt (${clickCount}/${MAX_CLICKS})`);
-            button.click();
-        } catch (e) {
-            console.error('[KA AutoShowMore] Fehler beim Klicken, stoppe sicherheitshalber:', e);
-            return; // im Zweifel lieber aufhoeren als moeglicherweise falsch weitermachen
+        for (let i = 0; i < QUICK_CLICK_COUNT; i++) {
+            const currentBtn = findButton();
+            if (currentBtn) {
+                currentBtn.click();
+                await new Promise(r => setTimeout(r, QUICK_CLICK_DELAY_MS));
+            } else {
+                break; // Button ist schon vor dem 4. Klick verschwunden
+            }
         }
 
-        setTimeout(clickLoop, CLICK_WAIT_MS);
+        // Nach der Klick-Salve warten, ob der Button überlebt hat oder neu geladen wurde
+        setTimeout(clickRoutine, CHECK_DELAY_MS);
     }
 
     function waitForFirstAppearance(attempt = 0) {
@@ -81,7 +74,7 @@ KAFeatureManager.register('AutoShowMore', () => {
         }
 
         if (button) {
-            clickLoop();
+            clickRoutine();
             return;
         }
 
