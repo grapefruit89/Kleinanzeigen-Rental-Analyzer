@@ -9,6 +9,8 @@ const KANavigation = {
     //   man muss selbst zur data-url navigieren.
     // Primär: aria-label / title. Fallback: alte Klassen/Text-Suche als Sicherheitsnetz,
     // falls Kleinanzeigen die Struktur nochmal ändert.
+    // 29.08.2026 live verifiziert: a[aria-label="Nächste"] existiert nach wie vor --
+    // dieser Teil war schon robust gebaut (Attribut statt Klasse) und ist unveraendert.
     findPaginationElement(kind) {
         const label = kind === 'next' ? 'Nächste' : 'Zurück';
 
@@ -67,7 +69,10 @@ const KANavigation = {
 
     updateVisibleAds() {
         // Collect all currently visible ads in the DOM independently of RentalAnalyzer
-        const ads = Array.from(document.querySelectorAll('article.aditem')).filter(ad => {
+        // 29.08.2026 live gefunden: article.aditem existiert nicht mehr (0 Treffer) --
+        // W/S-Navigation zwischen Anzeigen fand deshalb nie welche. Aktueller Anker ist
+        // article[data-adid], gleiche Basis wie DataExport/RentalAnalyzer.
+        const ads = Array.from(document.querySelectorAll('article[data-adid]')).filter(ad => {
             const style = window.getComputedStyle(ad);
             return style.display !== 'none' && style.visibility !== 'hidden';
         });

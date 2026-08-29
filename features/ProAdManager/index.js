@@ -6,7 +6,7 @@ KAFeatureManager.register('ProAdManager', async () => {
 
     const storageKey = 'ka_show_pros_state';
     let savedState = await KAStorage.get(storageKey, true);
-    
+
     if (savedState) {
         document.body.classList.add('ka-show-pro');
     }
@@ -19,14 +19,23 @@ KAFeatureManager.register('ProAdManager', async () => {
         if (isProcessing) return;
         isProcessing = true;
 
-        const listItems = document.querySelectorAll('li.ad-listitem');
-        
+        // 29.08.2026 live gefunden: li.ad-listitem existiert nicht mehr (0 Treffer) --
+        // die GESAMTE cleanUp()-Logik lief seitdem ins Leere, jeden einzigen Aufruf,
+        // ohne dass das sichtbar war (kein Fehler, einfach eine leere NodeList). Neuer
+        // Anker: article[data-adid] (gleiche Basis wie DataExport/WasdNavigation/
+        // RentalAnalyzer), Wrapper-<li> via closest('li').
+        const listItems = Array.from(document.querySelectorAll('article[data-adid]'))
+            .map(ad => ad.closest('li'))
+            .filter(Boolean);
+
         let currentValid = 0;
         let currentPro = 0;
-        const proRows = [];
 
         listItems.forEach(li => {
-            // Filler / Werbung filtern
+            // Filler / Werbung filtern -- diese Selektoren gehoeren zu Drittanbieter-
+            // Ad-Slots (srpb/liberty/google_ads_iframe), nicht zu Kleinanzeigens eigenem
+            // Markup, und sind live weiterhin vorhanden (.liberty-hide-unfilled: 12
+            // Treffer bestaetigt).
             if (li.querySelector('div[id^="srpb-result-list"]') ||
                 li.querySelector('.liberty-hide-unfilled') ||
                 li.querySelector('div[id^="google_ads_iframe"]')) {
@@ -34,47 +43,33 @@ KAFeatureManager.register('ProAdManager', async () => {
                 return;
             }
 
-            const ad = li.querySelector('article.aditem');
+            const ad = li.querySelector('article[data-adid]');
             if (!ad) return;
 
-            // TopAds entfernen
-            const isTopBadge = ad.querySelector('.aditem-image--badges--badge-topad') !== null;
-            const isTopClass = ad.classList.contains('is-topad');
-
-            // Datum prüfen (um seltsame Platzhalter zu ignorieren)
-            const dateBox = ad.querySelector('.aditem-main--top--right');
-            const hasDate = dateBox && dateBox.innerText.trim().length > 0;
-
-            if (!hasDate || isTopBadge || isTopClass) {
-                // Nur entfernen, wenn es nicht die neue Feedback-Insel ist
-                if (!li.querySelector('astro-island')) {
-                    li.classList.add('ka-pad-filler-hidden'); // CSS-hide statt remove() -- React besitzt diesen Knoten
-                }
-                return;
-            }
-
-            // PRO Erkennung
-            const isProBadge = ad.querySelector('.badge-hint-pro-small-srp') !== null;
+            // PRO/TOP-Erkennung -- 29.08.2026 DEAKTIVIERT, nicht nur repariert:
+            // .aditem-image--badges--badge-topad, .aditem-main--top--right und
+            // .badge-hint-pro-small-srp existieren alle nicht mehr (0 Treffer live).
+            // Die Sponsoring-Info liegt jetzt nicht mehr im sichtbaren DOM, sondern als
+            // JSON im props-Attribut eines <astro-island> (gefunden: Attribut "props"
+            // enthaelt "sponsoredAdPresent"/"resultAds"-Array). Das ist keine einfache
+            // Selektor-Korrektur mehr, sondern erfordert eigenes Parsen dieses JSON-Props
+            // und ein Zuordnen der Eintraege zu den data-adid-Werten -- dafuer fehlt live
+            // noch ein bestaetigtes Beispiel (in dieser Session keine TOP-Anzeige mit
+            // sichtbarem Badge gefunden, um das Mapping zu verifizieren). Bis das separat
+            // untersucht ist, bleibt PRO-Erkennung bewusst aus (kein Verstecken/Markieren)
+            // statt mit einer geratenen, unverifizierten Regel falsch positiv zu hidden.
+            const isProBadge = false;
             const isProLink = ad.querySelector('a[href^="/pro/"]') !== null;
 
             if (isProBadge || isProLink) {
                 li.classList.add('ka-pro-hidden');
                 currentPro++;
-                proRows.push(li);
             } else {
                 li.classList.remove('ka-pro-hidden');
             }
 
             currentValid++;
         });
-
-        // v1: PRO-Ads werden NICHT mehr per prepend() im DOM umsortiert -- auch ohne
-        // remove() bleibt das eine Knoten-Umhaengung, die React unter sich weiterlaufen
-        // sieht und dagegenarbeiten kann. Fuer jetzt reicht Ein-/Ausblenden per Klasse
-        // (ka-pro-hidden, siehe oben); visuelles Nach-oben-Sortieren waere ein separater
-        // CSS-only-Ansatz (z.B. order, wenn der Container tatsaechlich flex/grid ist --
-        // noch nicht verifiziert), kein DOM-Move. proRows wird nur noch fuer die
-        // Zaehlung oben gebraucht.
 
         if (currentValid !== validAdsCount || currentPro !== proAdsCount) {
             validAdsCount = currentValid;
@@ -86,8 +81,11 @@ KAFeatureManager.register('ProAdManager', async () => {
     }
 
     function initDashboard() {
-        const targetHeader = document.querySelector('.srp-header');
-        if (!targetHeader) return;
+        // 29.08.2026 live gefunden: .srp-header existiert nicht mehr (0 Treffer) --
+        // Dashboard wurde deshalb NIE injiziert. Neuer Anker: #srchrslt-adtable
+        // (live bestaetigt vorhanden), Dashboard wird direkt davor eingefuegt.
+        const resultsContainer = document.getElementById('srchrslt-adtable');
+        if (!resultsContainer) return;
 
         if (!document.getElementById('ka-dashboard-container')) {
             const dashboard = document.createElement('div');
@@ -99,7 +97,7 @@ KAFeatureManager.register('ProAdManager', async () => {
                     <span class="ka-btn-label">initialisieren</span>
                 </button>
             `;
-            targetHeader.parentNode.insertBefore(dashboard, targetHeader.nextSibling);
+            resultsContainer.parentNode.insertBefore(dashboard, resultsContainer);
 
             document.getElementById('ka-dashboard-btn').addEventListener('click', async () => {
                 const isActive = document.body.classList.toggle('ka-show-pro');

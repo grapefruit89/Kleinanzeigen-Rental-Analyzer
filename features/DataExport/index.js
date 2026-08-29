@@ -327,7 +327,11 @@ KAFeatureManager.register('DataExport', async () => {
     }
 
     function exportJsonl() {
-        const queryTerm = document.querySelector('#site-search-query')?.value || 'suche';
+        // 29.08.2026 live gefunden: #site-search-query existiert nicht mehr (Klassen-
+        // Drift wie ueberall sonst) -- Dateiname fiel deshalb IMMER auf "suche" zurueck,
+        // genau wie im echten Export zu sehen (KA_Export_suche.jsonl). Aktuelles Suchfeld
+        // hat keine feste ID mehr, nur noch name="keywords".
+        const queryTerm = document.querySelector('input[name="keywords"]')?.value || 'suche';
         const filename = sanitizeFilename(`KA_Export_${queryTerm}`);
 
         const jsonlOutput = state.allAds.map(obj => JSON.stringify(obj)).join('\n');
