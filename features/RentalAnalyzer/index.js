@@ -130,13 +130,22 @@ const KleinanzeigenAnalyzer = {
         observer.observe(document.body, { childList: true, subtree: true });
     },
 
+    // Debounce: laeuft auf JEDER Seite ausser /s-wohnung-mieten/ (SPA-Navigation-
+    // Watch), also z.B. auch auf normalen Kategorie-Seiten wie /s-kueche-esszimmer/.
+    // War bisher ungebremst auf document.body -- gleiches Freeze-Risiko-Muster wie
+    // SortSaver/HighResZoom/AutoShowMore/InPageMenu, hier aber uebersehen, weil nur
+    // die ANDERE (bereits debouncte) observe()-Methode geprueft wurde.
     observeOnlyButton() {
+        let debounceTimer = null;
         const observer = new MutationObserver(() => {
-            KAUI.injectHeaderButton();
-            if (window.location.href.includes('/s-wohnung-mieten/')) {
-                observer.disconnect();
-                this.init();
-            }
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                KAUI.injectHeaderButton();
+                if (window.location.href.includes('/s-wohnung-mieten/')) {
+                    observer.disconnect();
+                    this.init();
+                }
+            }, 400);
         });
         observer.observe(document.body, { childList: true, subtree: true });
     }
