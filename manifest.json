@@ -41,12 +41,10 @@
       "js": [
         "core/Storage.js",
         "core/FeatureManager.js",
-        
         "features/RentalAnalyzer/parser.js",
         "features/RentalAnalyzer/stats.js",
         "features/RentalAnalyzer/ui.js",
         "features/RentalAnalyzer/index.js",
-        
         "features/WasdNavigation/index.js",
         "features/UiCleaner/index.js",
         "features/HighResZoom/index.js",
@@ -56,8 +54,7 @@
         "features/CleanHomepage/index.js",
         "features/ProAdManager/index.js",
         "features/DataExport/index.js",
-        "features/McpBridge/index.js",
-        "features/InPageMenu/index.js"
+        "features/McpBridge/index.js"
       ],
       "css": [
         "features/RentalAnalyzer/style.css",
@@ -66,9 +63,8 @@
         "features/HighResZoom/style.css",
         "features/CleanHomepage/style.css",
         "features/ProAdManager/style.css",
-        "features/DataExport/style.css",
-        "features/InPageMenu/style.css"
-            ],
+        "features/DataExport/style.css"
+      ],
       "run_at": "document_idle"
     },
     {
@@ -85,12 +81,3 @@
     }
   ]
 }
-
-
-
-
-
-
-
-
-

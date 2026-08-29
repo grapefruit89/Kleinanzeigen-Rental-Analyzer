@@ -146,11 +146,20 @@ KAFeatureManager.register('HighResZoom', () => {
 
     async function showGallery(detailLink, mainImgSrc) {
         overlay.classList.add('active');
-        
-        // 1. Show main image immediately
+
+        // 1. Sofort das $_45-Zwischenbild zeigen (kein leeres Overlay), danach im
+        //    Hintergrund auf die schaerfste Aufloesung ($_57) hochladen und erst nach
+        //    onload tauschen -- kein sichtbarer Sprung/Flackern.
         const mainImg = document.createElement('img');
         mainImg.src = mainImgSrc;
         overlay.appendChild(mainImg);
+
+        const sharpSrc = mainImgSrc.replace(/rule=\$_\d+\.AUTO/, 'rule=$_57.AUTO');
+        if (sharpSrc !== mainImgSrc) {
+            const sharpPreload = new Image();
+            sharpPreload.onload = () => { mainImg.src = sharpSrc; };
+            sharpPreload.src = sharpSrc;
+        }
 
         // 2. Fetch ad detail page to find remaining images
         if (!detailLink) return;
@@ -165,11 +174,13 @@ KAFeatureManager.register('HighResZoom', () => {
             const detailImages = Array.from(doc.querySelectorAll('.galleryimage-element img'));
             
             // Extract unique image URLs, limit to next 3 images
+            // Insgesamt max. 3 Bilder im Overlay (1 Hauptbild + 2 weitere) --
+            // vorher 4, ab 4 wird's eine Kontaktfolie statt brauchbarer Vorschau.
             let added = 0;
             const seenUrls = new Set([mainImgSrc]); // don't add main image again
 
             for (const dImg of detailImages) {
-                if (added >= 3) break;
+                if (added >= 2) break;
                 
                 let src = dImg.getAttribute("src");
                 if (!src || !src.includes('prod-ads/images')) continue;

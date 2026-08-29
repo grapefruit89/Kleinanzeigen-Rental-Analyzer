@@ -31,7 +31,7 @@ KAFeatureManager.register('ProAdManager', async () => {
             if (li.querySelector('div[id^="srpb-result-list"]') ||
                 li.querySelector('.liberty-hide-unfilled') ||
                 li.querySelector('div[id^="google_ads_iframe"]')) {
-                li.remove();
+                li.classList.add('ka-pad-filler-hidden'); // CSS-hide statt remove() -- React besitzt diesen Knoten
                 return;
             }
 
@@ -49,7 +49,7 @@ KAFeatureManager.register('ProAdManager', async () => {
             if (!hasDate || isTopBadge || isTopClass) {
                 // Nur entfernen, wenn es nicht die neue Feedback-Insel ist
                 if (!li.querySelector('astro-island')) {
-                    li.remove();
+                    li.classList.add('ka-pad-filler-hidden'); // CSS-hide statt remove() -- React besitzt diesen Knoten
                 }
                 return;
             }
@@ -132,16 +132,21 @@ KAFeatureManager.register('ProAdManager', async () => {
         }
     }
 
-    // Init
+    // Init -- gedebounced (400ms, wie die anderen Module): cleanUp() veraendert selbst
+    // das DOM (Klassen setzen, PRO-Ads per prepend() umsortieren), was den eigenen
+    // Observer sonst bei jedem Durchlauf erneut triggert. Ohne Debounce war das der
+    // sechste gefundene Freeze-Kandidat dieser Session.
+    let debounceTimer = null;
     const observer = new MutationObserver(() => {
-        requestAnimationFrame(() => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
             cleanUp();
             initDashboard();
-        });
+        }, 400);
     });
 
     observer.observe(document.body, { childList: true, subtree: true });
-    
+
     cleanUp();
     initDashboard();
 });

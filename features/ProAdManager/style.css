@@ -1,4 +1,11 @@
 /* ProAdManager - Base Display Logic */
+/* Filler-/Werbe-Slots (srpb, liberty, google_ads_iframe) und TOP-Ads ohne
+   gueltiges Datum -- per Klasse ausgeblendet statt aus dem DOM entfernt,
+   damit React den Knoten weiter besitzt (siehe index.js cleanUp()). */
+body.ka-feature-proadmanager li.ad-listitem.ka-pad-filler-hidden {
+    display: none !important;
+}
+
 body.ka-feature-proadmanager li.ad-listitem.ka-pro-hidden {
     display: none !important;
 }
