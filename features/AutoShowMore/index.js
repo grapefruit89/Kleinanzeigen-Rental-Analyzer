@@ -61,7 +61,7 @@ KAFeatureManager.register('AutoShowMore', () => {
 
             // Button existiert. Läd er gerade aus einer vorherigen Aktion?
             if (button.getAttribute('aria-busy') === 'true') {
-                await new Promise(requestAnimationFrame);
+                await new Promise(r => setTimeout(r, 50));
                 continue;
             }
 
@@ -73,7 +73,7 @@ KAFeatureManager.register('AutoShowMore', () => {
             // 1. Warte, bis React den Ladezustand (aria-busy) setzt oder den Button löscht
             let startedLoading = false;
             while (performance.now() - t0 < 500) {
-                await new Promise(requestAnimationFrame); // Extrem schnelles Polling (ca. 16ms)
+                await new Promise(r => setTimeout(r, 50));
                 if (!document.body.contains(button)) break; // Button wurde aus dem DOM entfernt
                 if (button.getAttribute('aria-busy') === 'true') {
                     startedLoading = true;
@@ -87,7 +87,7 @@ KAFeatureManager.register('AutoShowMore', () => {
             if (startedLoading) {
                 const loadStart = performance.now();
                 while (document.body.contains(button) && button.getAttribute('aria-busy') === 'true') {
-                    await new Promise(requestAnimationFrame);
+                    await new Promise(r => setTimeout(r, 50));
                 }
                 const loadTime = performance.now() - loadStart;
                 console.log(`[KA AutoShowMore] Klick ${clickCount} ✅ | React-Startverzögerung: ${reactDelay.toFixed(1)}ms | Nachlade-Dauer: ${loadTime.toFixed(1)}ms`);
