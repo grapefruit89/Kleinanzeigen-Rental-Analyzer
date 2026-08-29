@@ -1,4 +1,4 @@
-// KAFeatureManager.register('AutoShowMore', () => {
+KAFeatureManager.register('AutoShowMore', () => {
     // Only run on homepage
     if (window.location.pathname !== '/' && window.location.pathname !== '') {
         return;
@@ -6,16 +6,30 @@
 
     // Kleinanzeigen laedt auf der Startseite in mehreren Batches nach -- ein
     // einzelner Klick auf "Weitere Anzeigen" reicht nicht, der Button taucht
-    // danach erneut auf (manuell getestet: nach ca. 4 Klicks ist er weg, also
-    // fertig geladen). Bewusst KEIN MutationObserver mehr: der hat bei jeder
-    // fremden Mutation auf der Seite (Werbung, Tracking-Skripte) unnoetig
-    // mitgefeuert und war schon mehrfach Ursache von Freezes (SortSaver,
-    // HighResZoom, InPageMenu). Stattdessen eine einfache, zeitgesteuerte
-    // Klick-Warte-Schleife: klicken, kurz warten bis nachgeladen ist, pruefen ob
-    // der Button noch da ist, ggf. wiederholen -- mit hartem Limit, damit das
-    // niemals endlos laeuft, selbst wenn Kleinanzeigen das Verhalten mal aendert.
+    // danach erneut auf. Wichtige Erkenntnis (bestaetigt durch Konsolen-Fehler
+    // und Antigravitys eigene, unabhaengige Debugging-Versuche mit demselben
+    // Symptom -- "bricking caused by anti-bot scripts"): Kleinanzeigen setzt
+    // Akamai Bot Manager ein (Cookies bm_sz/_abck bestaetigt). Schnelles,
+    // mechanisches Nachklicken im Sekundentakt ist genau das Verhaltensmuster,
+    // das Bot-Erkennung typischerweise flaggt -- vermutlich der Grund, warum
+    // die Ladeanimation manchmal haengen bleibt. Deshalb bewusst SPUERBAR
+    // laengere, leicht zufaellige Pausen zwischen Klicks statt maschinentakt.
+    //
+    // Kein MutationObserver (siehe SortSaver/HighResZoom/InPageMenu-Freezes),
+    // stattdessen eine begrenzte, zeitgesteuerte Klick-Warte-Schleife: klicken,
+    // auf aria-busy warten bis der Batch fertig geladen ist, dann erst die
+    // naechste (randomisierte) Pause, dann pruefen ob der Button noch da ist.
+    // Hartes Limit von 15 Klicks als Sicherheitsnetz gegen Endlos-Klicken.
+    const MAX_CLICKS = 15;
+    const MIN_DELAY_MS = 1800;           // Mindestpause zwischen Klicks (bewusst "menschlich" langsam)
+    const MAX_DELAY_MS = 3200;           // Obergrenze fuer die zufaellige Pause
+    const BUSY_POLL_MS = 150;            // wie oft aria-busy zwischengeprueft wird
+    const BUSY_TIMEOUT_MS = 8000;        // Sicherheitsabbruch, falls aria-busy nie weggeht
     const INITIAL_SEARCH_ATTEMPTS = 10;  // wie oft anfangs auf das Erscheinen des Buttons gewartet wird
     const INITIAL_SEARCH_INTERVAL_MS = 500;
+
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const randomDelay = () => MIN_DELAY_MS + Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS);
 
     function findButton() {
         try {
@@ -30,73 +44,59 @@
         }
     }
 
-    async function autoClicker() {
-        console.log("[KA AutoShowMore] Starte intelligenten Mess-Klicker...");
+    // Wartet, bis ein zuvor geklickter Button seinen Ladezustand (aria-busy)
+    // wieder verlassen hat, oder bricht nach BUSY_TIMEOUT_MS sicherheitshalber ab.
+    async function waitForBusyToClear(button) {
+        const start = performance.now();
+        while (performance.now() - start < BUSY_TIMEOUT_MS) {
+            try {
+                if (!document.body.contains(button)) return; // Button wurde entfernt -> fertig
+                if (button.getAttribute('aria-busy') !== 'true') return; // fertig geladen
+            } catch (e) {
+                console.error('[KA AutoShowMore] Fehler beim Pruefen von aria-busy:', e);
+                return;
+            }
+            await wait(BUSY_POLL_MS);
+        }
+        console.log('[KA AutoShowMore] aria-busy ist nach dem Timeout nicht verschwunden, mache trotzdem weiter.');
+    }
+
+    async function clickLoop() {
         let clickCount = 0;
 
-        while (true) {
-            if (clickCount >= 15) {
-                console.log("[KA AutoShowMore] Sicherheitslimit von 15 Klicks erreicht. Stoppe.");
-                break;
+        while (clickCount < MAX_CLICKS) {
+            let button;
+            try {
+                button = findButton();
+            } catch (e) {
+                console.error('[KA AutoShowMore] Fehler bei der Button-Suche, stoppe sicherheitshalber:', e);
+                return;
             }
 
-            const button = findButton();
-            
             if (!button) {
-                // Button ist nicht da. Wir warten bis zu 3 Sekunden, ob er neu auftaucht.
-                let foundAgain = false;
-                for (let i = 0; i < 60; i++) {
-                    await new Promise(r => setTimeout(r, 50));
-                    if (findButton()) {
-                        foundAgain = true;
-                        break;
-                    }
-                }
-                if (!foundAgain) {
-                    console.log(`[KA AutoShowMore] Button ist komplett verschwunden. (Insgesamt ${clickCount}x geklickt). Fertig!`);
-                    break;
-                }
-                continue; // Button ist wieder da, nächster Loop
+                console.log(`[KA AutoShowMore] Kein Button mehr da (nach ${clickCount} Klicks) -- fertig geladen.`);
+                return;
             }
 
-            // Button existiert. Läd er gerade aus einer vorherigen Aktion?
-            if (button.getAttribute('aria-busy') === 'true') {
-                await new Promise(r => setTimeout(r, 50));
-                continue;
-            }
-
-            // Button ist da und NICHT beschäftigt -> SOFORT KLICKEN
-            clickCount++;
-            const t0 = performance.now();
-            button.click();
-            
-            // 1. Warte, bis React den Ladezustand (aria-busy) setzt oder den Button löscht
-            let startedLoading = false;
-            while (performance.now() - t0 < 500) {
-                await new Promise(r => setTimeout(r, 50));
-                if (!document.body.contains(button)) break; // Button wurde aus dem DOM entfernt
+            try {
                 if (button.getAttribute('aria-busy') === 'true') {
-                    startedLoading = true;
-                    break;
+                    await waitForBusyToClear(button);
+                    continue; // danach neu pruefen, ob der Button noch da/klickbar ist
                 }
-            }
-            
-            const reactDelay = performance.now() - t0;
 
-            // 2. Wenn er lädt, messen wir, wie lange der Netzwerk-Request dauert
-            if (startedLoading) {
-                const loadStart = performance.now();
-                while (document.body.contains(button) && button.getAttribute('aria-busy') === 'true') {
-                    await new Promise(r => setTimeout(r, 50));
-                }
-                const loadTime = performance.now() - loadStart;
-                console.log(`[KA AutoShowMore] Klick ${clickCount} ✅ | React-Startverzögerung: ${reactDelay.toFixed(1)}ms | Nachlade-Dauer: ${loadTime.toFixed(1)}ms`);
-            } else {
-                console.log(`[KA AutoShowMore] Klick ${clickCount} ⚠️ | Kein Ladezustand erkannt (Wartezeit: ${reactDelay.toFixed(1)}ms)`);
-                // Kleiner Puffer, falls React den DOM komplett umgebaut hat
-                await new Promise(r => setTimeout(r, 100));
+                clickCount++;
+                console.log(`[KA AutoShowMore] 'Weitere Anzeigen' geklickt (${clickCount}/${MAX_CLICKS})`);
+                button.click();
+            } catch (e) {
+                console.error('[KA AutoShowMore] Fehler beim Klicken, stoppe sicherheitshalber:', e);
+                return;
             }
+
+            await waitForBusyToClear(button);
+            await wait(randomDelay());
         }
+
+        console.log(`[KA AutoShowMore] Sicherheitslimit erreicht (${MAX_CLICKS} Klicks), stoppe.`);
     }
 
     function waitForFirstAppearance(attempt = 0) {
@@ -108,7 +108,7 @@
         }
 
         if (button) {
-            autoClicker();
+            clickLoop();
             return;
         }
 
@@ -120,5 +120,5 @@
         setTimeout(() => waitForFirstAppearance(attempt + 1), INITIAL_SEARCH_INTERVAL_MS);
     }
 
-    // waitForFirstAppearance();
-// });
+    waitForFirstAppearance();
+});
