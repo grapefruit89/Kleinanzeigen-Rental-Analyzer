@@ -1,4 +1,4 @@
-KAFeatureManager.register('AutoShowMore', () => {
+// KAFeatureManager.register('AutoShowMore', () => {
     // Only run on homepage
     if (window.location.pathname !== '/' && window.location.pathname !== '') {
         return;
@@ -120,5 +120,5 @@ KAFeatureManager.register('AutoShowMore', () => {
         setTimeout(() => waitForFirstAppearance(attempt + 1), INITIAL_SEARCH_INTERVAL_MS);
     }
 
-    waitForFirstAppearance();
-});
+    // waitForFirstAppearance();
+// });
