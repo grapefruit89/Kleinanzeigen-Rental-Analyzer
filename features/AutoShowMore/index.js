@@ -67,13 +67,11 @@ KAFeatureManager.register('AutoShowMore', () => {
             clickCount++;
             console.log(`[KA AutoShowMore] Klick ${clickCount} ausgeführt! Warte auf Freigabe...`);
             
-            // Setzen wir manuell aria-disabled, damit wir im nächsten Loop (in 50ms) 
-            // nicht nochmal klicken, falls React zu langsam ist, um aria-busy zu setzen.
-            button.setAttribute('aria-disabled', 'true');
             button.click();
             
-            // Etwas länger warten, damit die Website sicher reagieren kann
-            await new Promise(r => setTimeout(r, 300));
+            // 500ms warten, um React genug Zeit zu geben, aria-busy selbst auf true zu setzen
+            // oder die Inserate in den DOM zu laden. Wir fassen den Button NICHT selbst an!
+            await new Promise(r => setTimeout(r, 500));
         }
     }
 
