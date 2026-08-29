@@ -173,15 +173,41 @@ KAFeatureManager.register('DataExport', async () => {
         }
     }
 
+    // 29.08.2026 live verifiziert: a.pagination-next existiert nicht mehr (deshalb
+    // blieb "Pages Scanned" bisher immer bei 1, egal was in "Max. Seiten" stand --
+    // derselbe Klassen-Drift wie ueberall sonst diese Session). Kleinanzeigen
+    // verlinkt Folgeseiten jetzt nur noch als nummerierte /seite:N/-Segmente
+    // (z.B. /s-kueche-esszimmer/muenchen/seite:2/c86l6411), kein "naechste Seite"-
+    // Link mit erkennbarem Zweck. Deshalb wie bei SortSaver: Segment selbst bauen
+    // statt einen Link zu suchen. Abbruchkriterium ist jetzt "0 Anzeigen auf der
+    // frisch geladenen Seite" statt "kein Next-Link gefunden".
+    function withPageSegment(url, pageNum) {
+        try {
+            const u = new URL(url);
+            const parts = u.pathname.split('/').filter(Boolean).filter(p => !p.startsWith('seite:'));
+            if (pageNum > 1) {
+                parts.splice(Math.max(parts.length - 1, 0), 0, `seite:${pageNum}`);
+            }
+            u.pathname = '/' + parts.join('/');
+            return u.toString();
+        } catch (e) {
+            return url;
+        }
+    }
+
     async function scrapeLoop() {
-        let currentUrl = window.location.href;
+        let currentPage = 1;
         let doc = document;
+        const baseUrl = window.location.href;
 
-        while (currentUrl && state.isScraping && !state.abortController.signal.aborted) {
-            state.pagesScanned++;
-
-            // Extract ads
+        while (state.isScraping && !state.abortController.signal.aborted) {
             const ads = extractAdsFromDocument(doc);
+
+            if (ads.length === 0 && currentPage > 1) {
+                break; // ueber die letzte Seite hinaus -- hier nichts mehr gefunden
+            }
+
+            state.pagesScanned = currentPage;
             state.allAds.push(...ads);
 
             updateProgress(`Scraping Page ${state.pagesScanned}...`, state.pagesScanned, state.allAds.length);
@@ -191,13 +217,8 @@ KAFeatureManager.register('DataExport', async () => {
                 break;
             }
 
-            // Find next page
-            const nextLink = doc.querySelector('a.pagination-next');
-            if (!nextLink || !nextLink.href) {
-                break; // No more pages
-            }
-
-            currentUrl = nextLink.href;
+            currentPage++;
+            const nextUrl = withPageSegment(baseUrl, currentPage);
 
             // Wait 1500-2500ms to avoid Datadome blocks
             await randomWait(1500, 2500);
@@ -206,7 +227,7 @@ KAFeatureManager.register('DataExport', async () => {
 
             // Fetch next page
             try {
-                const response = await fetch(currentUrl, { signal: state.abortController.signal });
+                const response = await fetch(nextUrl, { signal: state.abortController.signal });
                 const html = await response.text();
                 doc = new DOMParser().parseFromString(html, 'text/html');
             } catch (e) {
