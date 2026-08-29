@@ -2,13 +2,28 @@ KAFeatureManager.register('DataExport', async () => {
     // Only run on search pages
     if (!window.location.pathname.startsWith('/s-')) return;
 
+    // 29.08.2026 live gegen die aktuelle Such-UI verifiziert: die alte Markup-Basis
+    // (li.ad-listitem > article.aditem, .aditem-main--*) existiert nicht mehr --
+    // Kleinanzeigen hat seitdem auf Tailwind-Utility-Klassen umgestellt, die sich
+    // vermutlich haeufiger aendern als semantische Klassen. Deshalb hier bewusst
+    // INHALTS-basiert statt klassen-basiert geparst (Regex auf Text/Attribute statt
+    // feste Tailwind-Klassennamen), damit kuenftige Klassen-Churn weniger oft bricht:
+    //   - Container: article[data-adid] (traegt data-adid + data-href direkt, kein
+    //     <a href="/s-anzeige/...">-Element mehr noetig)
+    //   - Titel: erstes h2/h3 im Artikel
+    //   - Preis: <p>, deren Text auf €/VB/"Zu verschenken" matcht
+    //   - Groesse/Zimmer: <p>, deren Text "m²" enthaelt
+    //   - Ort (PLZ + Stadt): <span>, deren Text mit 5 Ziffern beginnt
+    //   - Kurzbeschreibung (Teaser): laengster verbleibender <p>-Text im Artikel
+
     let state = {
         isScraping: false,
         abortController: null,
         allAds: [],
         pagesScanned: 0,
         scriptErrors: [],
-        maxPages: 5
+        maxPages: 5,
+        fetchFullDetails: true
     };
 
     function sanitizeFilename(name) {
@@ -17,6 +32,10 @@ KAFeatureManager.register('DataExport', async () => {
 
     function sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function randomWait(minMs, maxMs) {
+        return sleep(minMs + Math.random() * (maxMs - minMs));
     }
 
     function logScriptError(error, context) {
@@ -66,29 +85,37 @@ KAFeatureManager.register('DataExport', async () => {
 
     function extractAdsFromDocument(doc) {
         const extracted = [];
-        doc.querySelectorAll('article.aditem, li.ad-listitem > article.aditem').forEach(item => {
+        doc.querySelectorAll('article[data-adid]').forEach(article => {
             try {
                 const data = {};
-                const adid = item.getAttribute('data-adid');
+                const adid = article.getAttribute('data-adid');
                 if (adid) data.id_of_ad = adid;
 
-                const titleElement = item.querySelector('h2.text-module-begin a.ellipsis, h2.text-module-begin span.ellipsis');
-                if (titleElement) data.title = titleElement.textContent.trim();
-                
-                const descElement = item.querySelector('.aditem-main--middle--description');
-                if (descElement) data.description = descElement.textContent.trim().replace(/\s+/g, ' ');
-                
-                const priceElement = item.querySelector('.aditem-main--middle--price-shipping--price');
-                if (priceElement) data.price = parsePrice(priceElement.textContent);
-                
-                const locationElement = item.querySelector('.aditem-main--top--left');
-                if (locationElement) data.location = parseLocation(locationElement.textContent);
-                
-                const dateElement = item.querySelector('.aditem-main--top--right');
-                if (dateElement) data.date = dateElement.textContent.trim();
-                
-                const linkElement = item.querySelector('a[href^="/s-anzeige/"]');
-                if(linkElement) data.link = `https://www.kleinanzeigen.de${linkElement.getAttribute('href')}`;
+                const href = article.getAttribute('data-href');
+                if (href) data.link = href.startsWith('http') ? href : `https://www.kleinanzeigen.de${href}`;
+
+                const heading = article.querySelector('h2, h3');
+                if (heading) data.title = heading.textContent.trim().replace(/\s+/g, ' ');
+
+                const paragraphs = Array.from(article.querySelectorAll('p'))
+                    .map(p => p.textContent.trim().replace(/\s+/g, ' '))
+                    .filter(Boolean);
+
+                const priceText = paragraphs.find(t => /€|VB\b|Zu verschenken/i.test(t));
+                if (priceText) data.price = parsePrice(priceText);
+
+                const sizeText = paragraphs.find(t => /m²/.test(t));
+                if (sizeText) data.groesse_zimmer = sizeText;
+
+                const teaser = paragraphs
+                    .filter(t => t !== priceText && t !== sizeText)
+                    .sort((a, b) => b.length - a.length)[0];
+                if (teaser) data.description_short = teaser;
+
+                const plzSpan = Array.from(article.querySelectorAll('span'))
+                    .map(s => s.textContent.trim())
+                    .find(t => /^\d{5}\s/.test(t));
+                if (plzSpan) data.location = parseLocation(plzSpan);
 
                 if (data.id_of_ad) extracted.push(data);
             } catch (e) {}
@@ -96,17 +123,67 @@ KAFeatureManager.register('DataExport', async () => {
         return extracted;
     }
 
+    // Detailseiten-Parsing: Vollbeschreibung, Einstelldatum, Versandoption.
+    // 29.08.2026 live verifiziert -- #viewad-description und #viewad-extra-info
+    // existieren auf der Detailseite; Versand wurde bei Wohnungsanzeigen (logisch,
+    // eine Wohnung kann man nicht verschicken) nicht gefunden, deshalb hier best
+    // effort mit Fallback auf null statt festem Selector.
+    function extractDetailsFromDocument(doc) {
+        const result = { description_full: null, eingestellt_am: null, versand_moeglich: null };
+        try {
+            const descEl = doc.getElementById('viewad-description');
+            if (descEl) {
+                let text = descEl.textContent.replace(/\s+/g, ' ').trim();
+                text = text.replace(/^Beschreibung\s*/, '').trim();
+                result.description_full = text;
+            }
+        } catch (e) {}
+
+        try {
+            const extraInfo = doc.getElementById('viewad-extra-info');
+            if (extraInfo) {
+                const text = extraInfo.textContent.replace(/\s+/g, ' ').trim();
+                const dateMatch = text.match(/\d{2}\.\d{2}\.\d{4}/);
+                if (dateMatch) result.eingestellt_am = dateMatch[0];
+            }
+        } catch (e) {}
+
+        try {
+            const shippingEl = doc.getElementById('viewad-shipping-options')
+                || Array.from(doc.querySelectorAll('body *')).find(e => e.children.length === 0 && /versand möglich|versand ist möglich/i.test(e.textContent || ''));
+            if (shippingEl) {
+                result.versand_moeglich = true;
+            } else if (Array.from(doc.querySelectorAll('body *')).find(e => e.children.length === 0 && /kein versand|nur abholung/i.test(e.textContent || ''))) {
+                result.versand_moeglich = false;
+            }
+        } catch (e) {}
+
+        return result;
+    }
+
+    async function fetchAdDetails(url, signal) {
+        try {
+            const response = await fetch(url, { signal });
+            const html = await response.text();
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            return extractDetailsFromDocument(doc);
+        } catch (e) {
+            if (e.name !== 'AbortError') logScriptError(e, 'fetchAdDetails');
+            return { description_full: null, eingestellt_am: null, versand_moeglich: null };
+        }
+    }
+
     async function scrapeLoop() {
         let currentUrl = window.location.href;
         let doc = document;
-        
+
         while (currentUrl && state.isScraping && !state.abortController.signal.aborted) {
             state.pagesScanned++;
-            
+
             // Extract ads
             const ads = extractAdsFromDocument(doc);
             state.allAds.push(...ads);
-            
+
             updateProgress(`Scraping Page ${state.pagesScanned}...`, state.pagesScanned, state.allAds.length);
 
             // Limit check
@@ -123,8 +200,7 @@ KAFeatureManager.register('DataExport', async () => {
             currentUrl = nextLink.href;
 
             // Wait 1500-2500ms to avoid Datadome blocks
-            const waitTime = Math.floor(Math.random() * 1000) + 1500;
-            await sleep(waitTime);
+            await randomWait(1500, 2500);
 
             if (state.abortController.signal.aborted) break;
 
@@ -138,11 +214,35 @@ KAFeatureManager.register('DataExport', async () => {
                 break;
             }
         }
+
+        // Zweite Phase: pro gefundener Anzeige die Detailseite laden und
+        // Vollbeschreibung/Datum/Versand nachladen -- deshalb bewusst NICHT
+        // parallel (Promise.all), sondern sequentiell mit randomisierter Pause,
+        // gleiches Datadome-Schutzmuster wie bei der Seiten-Paginierung oben.
+        if (state.fetchFullDetails) {
+            for (let i = 0; i < state.allAds.length; i++) {
+                if (!state.isScraping || state.abortController.signal.aborted) break;
+                const ad = state.allAds[i];
+                if (!ad.link) continue;
+
+                updateProgress(`Lade Details ${i + 1}/${state.allAds.length}...`, state.pagesScanned, state.allAds.length);
+
+                const details = await fetchAdDetails(ad.link, state.abortController.signal);
+                ad.description_full = details.description_full;
+                ad.eingestellt_am = details.eingestellt_am;
+                ad.versand_moeglich = details.versand_moeglich;
+
+                if (i < state.allAds.length - 1) {
+                    await randomWait(900, 1700);
+                }
+            }
+        }
     }
 
     async function toggleScraping() {
         const btn = document.getElementById('md-scraper-btn');
         const limitInput = document.getElementById('md-scraper-limit');
+        const fulltextInput = document.getElementById('md-scraper-fulltext');
 
         if (state.isScraping) {
             // STOP
@@ -154,6 +254,7 @@ KAFeatureManager.register('DataExport', async () => {
 
         // READ LIMIT
         state.maxPages = parseInt(limitInput.value) || 5;
+        state.fetchFullDetails = !!(fulltextInput && fulltextInput.checked);
 
         // START
         state.isScraping = true;
@@ -165,7 +266,8 @@ KAFeatureManager.register('DataExport', async () => {
         btn.textContent = 'Stop Scraping';
         btn.classList.add('stop-btn');
         limitInput.disabled = true;
-        
+        if (fulltextInput) fulltextInput.disabled = true;
+
         updateProgress('Starting...', 0, 0);
 
         try {
@@ -190,12 +292,16 @@ KAFeatureManager.register('DataExport', async () => {
         state.abortController = null;
         const btn = document.getElementById('md-scraper-btn');
         const limitInput = document.getElementById('md-scraper-limit');
+        const fulltextInput = document.getElementById('md-scraper-fulltext');
         if (btn) {
             btn.textContent = 'Start Auto-Scraper';
             btn.classList.remove('stop-btn');
         }
         if (limitInput) {
             limitInput.disabled = false;
+        }
+        if (fulltextInput) {
+            fulltextInput.disabled = false;
         }
     }
 
@@ -204,7 +310,7 @@ KAFeatureManager.register('DataExport', async () => {
         const filename = sanitizeFilename(`KA_Export_${queryTerm}`);
 
         const jsonlOutput = state.allAds.map(obj => JSON.stringify(obj)).join('\n');
-        
+
         const blob = new Blob([jsonlOutput], { type: 'application/jsonl;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -230,11 +336,11 @@ KAFeatureManager.register('DataExport', async () => {
 
         const limitContainer = document.createElement('div');
         limitContainer.style.cssText = 'display: flex; justify-content: space-between; align-items: center; font-size: 13px;';
-        
+
         const limitLabel = document.createElement('label');
         limitLabel.textContent = 'Max. Seiten:';
         limitLabel.htmlFor = 'md-scraper-limit';
-        
+
         const limitInput = document.createElement('input');
         limitInput.type = 'number';
         limitInput.id = 'md-scraper-limit';
@@ -245,6 +351,22 @@ KAFeatureManager.register('DataExport', async () => {
 
         limitContainer.appendChild(limitLabel);
         limitContainer.appendChild(limitInput);
+
+        const fulltextContainer = document.createElement('div');
+        fulltextContainer.style.cssText = 'display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-top: 4px;';
+
+        const fulltextLabel = document.createElement('label');
+        fulltextLabel.textContent = 'Volltext + Details laden (langsamer):';
+        fulltextLabel.htmlFor = 'md-scraper-fulltext';
+        fulltextLabel.style.cssText = 'flex: 1; margin-right: 6px;';
+
+        const fulltextInput = document.createElement('input');
+        fulltextInput.type = 'checkbox';
+        fulltextInput.id = 'md-scraper-fulltext';
+        fulltextInput.checked = true;
+
+        fulltextContainer.appendChild(fulltextLabel);
+        fulltextContainer.appendChild(fulltextInput);
 
         const statusMsg = document.createElement('div');
         statusMsg.id = 'md-scraper-msg';
@@ -277,6 +399,7 @@ KAFeatureManager.register('DataExport', async () => {
         container.appendChild(title);
         container.appendChild(sortWarning);
         container.appendChild(limitContainer);
+        container.appendChild(fulltextContainer);
         container.appendChild(statusMsg);
         container.appendChild(progressTable);
         container.appendChild(btn);
