@@ -131,6 +131,7 @@ KAFeatureManager.register('HighResZoom', () => {
         overlay.classList.remove('active');
         if (currentAbortController) currentAbortController.abort();
         clearTimeout(hoverTimer);
+        hoverToken++; // jeder Hover-Wechsel entwertet noch wartende Detail-Fetches sofort
 
         // Wait 250ms to prevent flashing on accidental hover
         hoverTimer = setTimeout(() => {
@@ -142,9 +143,66 @@ KAFeatureManager.register('HighResZoom', () => {
         clearTimeout(hoverTimer);
         overlay.classList.remove('active');
         if (currentAbortController) currentAbortController.abort();
+        hoverToken++; // laufende/wartende Gallery-Fetches fuer diese Karte werden ab hier ignoriert
+    }
+
+    // 29.08.2026 live gefunden: schnelles Hovern ueber mehrere Karten hintereinander
+    // hat Kleinanzeigen selbst mit HTTP 503 auf JEDEN einzelnen Detailseiten-Fetch
+    // reagiert (Bild-CDN-Requests liefen parallel weiter mit 200) -- klassisches
+    // Bot-Rate-Limiting (Akamai, siehe AutoShowMore-Kommentar), kein Fehler im
+    // fetch()-Aufruf selbst. Gegenmassnahme:
+    //   1. galleryCache: pro Anzeige nur einmal pro Seiten-Session nachladen.
+    //   2. hoverToken: jeder neue Hover/Leave entwertet vorherige Anfragen sofort --
+    //      eine Karte, die der Nutzer schon wieder verlassen hat, wird NICHT mehr
+    //      gefetcht, auch wenn sie noch in der Warteschlange stand.
+    //   3. fetchChain: serialisiert alle Detail-Fetches mit Mindestabstand
+    //      (MIN_FETCH_GAP_MS), statt dass mehrere Hovers gleichzeitig lospreschen.
+    const galleryCache = new Map(); // detailLink -> Array<string> (Bild-URLs)
+    let hoverToken = 0;
+    let fetchChain = Promise.resolve();
+    let lastFetchAt = 0;
+    const MIN_FETCH_GAP_MS = 450;
+
+    function renderCachedGallery(srcs) {
+        for (const src of srcs) {
+            const newImg = document.createElement('img');
+            newImg.src = src;
+            overlay.appendChild(newImg);
+        }
+    }
+
+    async function fetchGalleryImages(detailLink, mainImgSrc, signal) {
+        const response = await fetch(detailLink, { signal });
+        const html = await response.text();
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+
+        const detailImages = Array.from(doc.querySelectorAll('.galleryimage-element img'));
+
+        // Insgesamt max. 3 Bilder im Overlay (1 Hauptbild + 2 weitere) --
+        // vorher 4, ab 4 wird's eine Kontaktfolie statt brauchbarer Vorschau.
+        let added = 0;
+        const seenUrls = new Set([mainImgSrc]); // don't add main image again
+        const collected = [];
+
+        for (const dImg of detailImages) {
+            if (added >= 2) break;
+
+            let src = dImg.getAttribute("src");
+            if (!src || !src.includes('prod-ads/images')) continue;
+
+            src = src.replace(/rule=\$_\d+\.AUTO/, CACHE_RULES.max);
+
+            if (!seenUrls.has(src)) {
+                seenUrls.add(src);
+                added++;
+                collected.push(src);
+            }
+        }
+        return collected;
     }
 
     async function showGallery(detailLink, mainImgSrc) {
+        const myToken = hoverToken;
         overlay.classList.add('active');
 
         // 1. Sofort das $_45-Zwischenbild zeigen (kein leeres Overlay), danach im
@@ -164,43 +222,36 @@ KAFeatureManager.register('HighResZoom', () => {
         // 2. Fetch ad detail page to find remaining images
         if (!detailLink) return;
 
+        if (galleryCache.has(detailLink)) {
+            if (myToken !== hoverToken) return; // Nutzer ist laengst weiter
+            renderCachedGallery(galleryCache.get(detailLink));
+            return;
+        }
+
         currentAbortController = new AbortController();
-        try {
-            const response = await fetch(detailLink, { signal: currentAbortController.signal });
-            const html = await response.text();
-            const doc = new DOMParser().parseFromString(html, 'text/html');
+        const myAbort = currentAbortController;
 
-            // Find all images in the gallery of the detail page
-            const detailImages = Array.from(doc.querySelectorAll('.galleryimage-element img'));
-            
-            // Extract unique image URLs, limit to next 3 images
-            // Insgesamt max. 3 Bilder im Overlay (1 Hauptbild + 2 weitere) --
-            // vorher 4, ab 4 wird's eine Kontaktfolie statt brauchbarer Vorschau.
-            let added = 0;
-            const seenUrls = new Set([mainImgSrc]); // don't add main image again
+        // In die serialisierte Kette einreihen statt sofort loszufeuern.
+        fetchChain = fetchChain.then(async () => {
+            if (myToken !== hoverToken || myAbort.signal.aborted) return; // schon verlassen -- gar nicht erst fetchen
 
-            for (const dImg of detailImages) {
-                if (added >= 2) break;
-                
-                let src = dImg.getAttribute("src");
-                if (!src || !src.includes('prod-ads/images')) continue;
-                
-                src = src.replace(/rule=\$_\d+\.AUTO/, CACHE_RULES.max);
-                
-                if (!seenUrls.has(src)) {
-                    seenUrls.add(src);
-                    added++;
-                    
-                    const newImg = document.createElement('img');
-                    newImg.src = src;
-                    overlay.appendChild(newImg);
+            const gap = MIN_FETCH_GAP_MS - (Date.now() - lastFetchAt);
+            if (gap > 0) await new Promise((resolve) => setTimeout(resolve, gap));
+            lastFetchAt = Date.now();
+
+            if (myToken !== hoverToken || myAbort.signal.aborted) return; // erneut pruefen nach der Wartezeit
+
+            try {
+                const collected = await fetchGalleryImages(detailLink, mainImgSrc, myAbort.signal);
+                galleryCache.set(detailLink, collected);
+                if (myToken !== hoverToken) return; // Antwort kam an, Nutzer ist aber schon weiter
+                renderCachedGallery(collected);
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    console.error('[KA] Error fetching ad gallery:', err);
                 }
             }
-        } catch (err) {
-            if (err.name !== 'AbortError') {
-                console.error('[KA] Error fetching ad gallery:', err);
-            }
-        }
+        });
     }
 
     // Run initially and observe mutations
@@ -228,4 +279,3 @@ KAFeatureManager.register('HighResZoom', () => {
     const adListContainer = document.querySelector('#srchrslt-adtable, .itemlist') || document.body;
     observer.observe(adListContainer, { childList: true, subtree: true });
 });
-
