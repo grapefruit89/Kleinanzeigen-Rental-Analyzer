@@ -168,16 +168,27 @@ KAFeatureManager.register('ProAdManager', async () => {
     // das DOM (Klassen setzen), was den eigenen
     // Observer sonst bei jedem Durchlauf erneut triggert. Ohne Debounce war das der
     // sechste gefundene Freeze-Kandidat dieser Session.
+    //
+    // BUGFIX 29.08.2026 (Grok-Review, live bestaetigt): Observer beobachtete bisher
+    // document.body -- parallel zu RentalAnalyzer/InPageMenu/HighResZoom-Fallback macht
+    // das mehrere volle Body-Observer gleichzeitig, obwohl cleanUp()/initDashboard() nur
+    // Aenderungen INNERHALB der Ergebnisliste interessieren. Beobachtet jetzt nur noch
+    // #srchrslt-adtable selbst; existiert der Container beim ersten Lauf noch nicht
+    // (z.B. sehr fruehes document_idle), greift initDashboard()'s eigener null-Check und
+    // der Observer startet einfach nicht -- auf echten Ergebnisseiten ist der Container
+    // zu diesem Zeitpunkt schon da (live bestaetigt), aendert sich also nichts.
     let debounceTimer = null;
-    const observer = new MutationObserver(() => {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
-            cleanUp();
-            initDashboard();
-        }, 400);
-    });
-
-    observer.observe(document.body, { childList: true, subtree: true });
+    const resultsContainer = document.getElementById('srchrslt-adtable');
+    if (resultsContainer) {
+        const observer = new MutationObserver(() => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                cleanUp();
+                initDashboard();
+            }, 400);
+        });
+        observer.observe(resultsContainer, { childList: true, subtree: true });
+    }
 
     cleanUp();
     initDashboard();

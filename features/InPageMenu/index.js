@@ -102,7 +102,10 @@
                     const settings = result.ka_settings || {};
 
                     MODULES.forEach(mod => {
-                        const isEnabled = settings[mod.id] !== false; // Default true
+                        // 29.08.2026: Gegenstueck zur FeatureManager-Umstellung auf Opt-in
+                        // (siehe core/FeatureManager.js) -- ohne diese Aenderung wuerde das Menu
+                        // Haekchen fuer Features zeigen, die real gar nicht mehr laufen.
+                        const isEnabled = settings[mod.id] === true; // Default aus (Opt-in)
 
                         const item = document.createElement('div');
                         item.className = 'ka-module-item';

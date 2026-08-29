@@ -257,25 +257,28 @@ KAFeatureManager.register('HighResZoom', () => {
     // Run initially and observe mutations
     processThumbnails();
 
-    // WICHTIG: kein ungebremster Observer! Auf Seiten ohne #srchrslt-adtable/.itemlist
-    // (z.B. die Startseite mit dem Feed-Grid) faellt der Container auf document.body
-    // zurueck -- dort mutiert staendig irgendwas (Werbung, Tracking-Skripte, nachladende
-    // Feed-Elemente), voellig unabhaengig von neuen Anzeigenbildern. Ohne Debounce
-    // wuerde processThumbnails() (voller Rescan der Seite + pro Bild eine Card-Suche)
-    // bei jeder dieser Mutationen sofort erneut laufen und den Tab lahmlegen. Debounce
-    // nach demselben Muster wie der SortSaver-Freeze-Fix.
+    // BUGFIX 29.08.2026 (Grok-Review, live bestaetigt): der Fallback auf document.body
+    // (wenn #srchrslt-adtable/.itemlist fehlt, z.B. Startseite/Feed-Grid) war selbst mit
+    // 400ms-Debounce noch ein Freeze-Risiko -- ein voller body-subtree-Observer, der bei
+    // JEDER Mutation (Werbung, Tracking, nachladender Feed) prueft, ob addedNodes > 0 war,
+    // parallel zu den anderen Features, die ebenfalls auf document.body/documentElement
+    // beobachten (ProAdManager, RentalAnalyzer, InPageMenu). Kein Listen-Container heisst:
+    // auf dieser Seite gibt es aktuell nichts, wofuer HighResZoom zustaendig ist (die Karten
+    // fehlen ja) -- der Observer startet in diesem Fall jetzt gar nicht erst, statt auf
+    // body auszuweichen. Auf echten Ergebnisseiten aendert sich dadurch nichts.
     let debounceTimer = null;
-    const observer = new MutationObserver((mutations) => {
-        let hasAddedNodes = false;
-        for (const m of mutations) {
-            if (m.addedNodes.length > 0) { hasAddedNodes = true; break; }
-        }
-        if (!hasAddedNodes) return;
+    const adListContainer = document.querySelector('#srchrslt-adtable, .itemlist');
+    if (adListContainer) {
+        const observer = new MutationObserver((mutations) => {
+            let hasAddedNodes = false;
+            for (const m of mutations) {
+                if (m.addedNodes.length > 0) { hasAddedNodes = true; break; }
+            }
+            if (!hasAddedNodes) return;
 
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(processThumbnails, 400);
-    });
-
-    const adListContainer = document.querySelector('#srchrslt-adtable, .itemlist') || document.body;
-    observer.observe(adListContainer, { childList: true, subtree: true });
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(processThumbnails, 400);
+        });
+        observer.observe(adListContainer, { childList: true, subtree: true });
+    }
 });
