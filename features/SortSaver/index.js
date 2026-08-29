@@ -69,7 +69,11 @@ KAFeatureManager.register('SortSaver', () => {
         }
     }, true);
 
-    let lastUrl = location.href;
+    // Bewusst NICHT mit location.href initialisiert: sonst wuerde der allererste
+    // Aufruf (voller Seiten-Reload nach Ortswechsel) immer uebersprungen, weil
+    // "aktuelle URL === lastUrl" beim Start trivial wahr ist -- genau der Fall, in dem
+    // Restore am dringendsten noetig ist. Gefunden 29.08.2026 beim Live-Test.
+    let lastUrl = null;
     let applying = false;
 
     async function checkAndRestore() {

@@ -20,7 +20,6 @@ KAFeatureManager.register('ProAdManager', async () => {
         isProcessing = true;
 
         const listItems = document.querySelectorAll('li.ad-listitem');
-        const resultList = document.querySelector('#srchrslt-adtable, .itemlist');
         
         let currentValid = 0;
         let currentPro = 0;
@@ -69,12 +68,13 @@ KAFeatureManager.register('ProAdManager', async () => {
             currentValid++;
         });
 
-        // Pro-Ads neu sortieren (AGRESSIV NACH OBEN)
-        if (resultList && proRows.length > 0) {
-            const fragment = document.createDocumentFragment();
-            proRows.forEach(row => fragment.appendChild(row));
-            resultList.prepend(fragment);
-        }
+        // v1: PRO-Ads werden NICHT mehr per prepend() im DOM umsortiert -- auch ohne
+        // remove() bleibt das eine Knoten-Umhaengung, die React unter sich weiterlaufen
+        // sieht und dagegenarbeiten kann. Fuer jetzt reicht Ein-/Ausblenden per Klasse
+        // (ka-pro-hidden, siehe oben); visuelles Nach-oben-Sortieren waere ein separater
+        // CSS-only-Ansatz (z.B. order, wenn der Container tatsaechlich flex/grid ist --
+        // noch nicht verifiziert), kein DOM-Move. proRows wird nur noch fuer die
+        // Zaehlung oben gebraucht.
 
         if (currentValid !== validAdsCount || currentPro !== proAdsCount) {
             validAdsCount = currentValid;
@@ -133,7 +133,7 @@ KAFeatureManager.register('ProAdManager', async () => {
     }
 
     // Init -- gedebounced (400ms, wie die anderen Module): cleanUp() veraendert selbst
-    // das DOM (Klassen setzen, PRO-Ads per prepend() umsortieren), was den eigenen
+    // das DOM (Klassen setzen), was den eigenen
     // Observer sonst bei jedem Durchlauf erneut triggert. Ohne Debounce war das der
     // sechste gefundene Freeze-Kandidat dieser Session.
     let debounceTimer = null;
