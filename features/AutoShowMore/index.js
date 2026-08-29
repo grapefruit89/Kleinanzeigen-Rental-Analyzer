@@ -31,8 +31,7 @@ KAFeatureManager.register('AutoShowMore', () => {
     }
 
     async function autoClicker() {
-        console.log("[KA AutoShowMore] Starte schnellen Auto-Klicker...");
-        let emptyChecks = 0;
+        console.log("[KA AutoShowMore] Starte intelligenten Mess-Klicker...");
         let clickCount = 0;
 
         while (true) {
@@ -44,34 +43,59 @@ KAFeatureManager.register('AutoShowMore', () => {
             const button = findButton();
             
             if (!button) {
-                // Button ist nicht da. Wir warten 50ms und zählen mit.
-                emptyChecks++;
-                // Wenn der Button für 60 Checks (ca. 3 Sekunden) komplett weg bleibt, sind wir fertig.
-                if (emptyChecks >= 60) {
-                    console.log(`[KA AutoShowMore] Button ist verschwunden. (Insgesamt ${clickCount}x geklickt). Fertig!`);
+                // Button ist nicht da. Wir warten bis zu 3 Sekunden, ob er neu auftaucht.
+                let foundAgain = false;
+                for (let i = 0; i < 60; i++) {
+                    await new Promise(r => setTimeout(r, 50));
+                    if (findButton()) {
+                        foundAgain = true;
+                        break;
+                    }
+                }
+                if (!foundAgain) {
+                    console.log(`[KA AutoShowMore] Button ist komplett verschwunden. (Insgesamt ${clickCount}x geklickt). Fertig!`);
                     break;
                 }
-                await new Promise(r => setTimeout(r, 50));
-                continue;
+                continue; // Button ist wieder da, nächster Loop
             }
 
-            // Button existiert. Läd er gerade?
+            // Button existiert. Läd er gerade aus einer vorherigen Aktion?
             if (button.getAttribute('aria-busy') === 'true') {
-                emptyChecks = 0; // Er ist da, nur beschäftigt
-                await new Promise(r => setTimeout(r, 50));
+                await new Promise(requestAnimationFrame);
                 continue;
             }
 
             // Button ist da und NICHT beschäftigt -> SOFORT KLICKEN
-            emptyChecks = 0;
             clickCount++;
-            console.log(`[KA AutoShowMore] Klick ${clickCount} ausgeführt! Warte auf Freigabe...`);
-            
+            const t0 = performance.now();
             button.click();
             
-            // 500ms warten, um React genug Zeit zu geben, aria-busy selbst auf true zu setzen
-            // oder die Inserate in den DOM zu laden. Wir fassen den Button NICHT selbst an!
-            await new Promise(r => setTimeout(r, 500));
+            // 1. Warte, bis React den Ladezustand (aria-busy) setzt oder den Button löscht
+            let startedLoading = false;
+            while (performance.now() - t0 < 500) {
+                await new Promise(requestAnimationFrame); // Extrem schnelles Polling (ca. 16ms)
+                if (!document.body.contains(button)) break; // Button wurde aus dem DOM entfernt
+                if (button.getAttribute('aria-busy') === 'true') {
+                    startedLoading = true;
+                    break;
+                }
+            }
+            
+            const reactDelay = performance.now() - t0;
+
+            // 2. Wenn er lädt, messen wir, wie lange der Netzwerk-Request dauert
+            if (startedLoading) {
+                const loadStart = performance.now();
+                while (document.body.contains(button) && button.getAttribute('aria-busy') === 'true') {
+                    await new Promise(requestAnimationFrame);
+                }
+                const loadTime = performance.now() - loadStart;
+                console.log(`[KA AutoShowMore] Klick ${clickCount} ✅ | React-Startverzögerung: ${reactDelay.toFixed(1)}ms | Nachlade-Dauer: ${loadTime.toFixed(1)}ms`);
+            } else {
+                console.log(`[KA AutoShowMore] Klick ${clickCount} ⚠️ | Kein Ladezustand erkannt (Wartezeit: ${reactDelay.toFixed(1)}ms)`);
+                // Kleiner Puffer, falls React den DOM komplett umgebaut hat
+                await new Promise(r => setTimeout(r, 100));
+            }
         }
     }
 
