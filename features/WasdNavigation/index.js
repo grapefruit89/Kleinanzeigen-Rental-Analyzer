@@ -9,6 +9,8 @@
 //   Seiten: a[aria-label="Nächste"|"Zurück"] (A/D, war schon robust)
 // BROKEN IF:
 //   S/W bewegt den Fokus nicht trotz mehrerer sichtbarer Karten auf der Seite
+//   ODER zweimal S hintereinander landet beide Male auf derselben Karte
+//        (Index-Reset-Regression, gefunden 29.08.2026)
 // DO NOT:
 //   article.aditem als Karten-Anker nutzen -- 0 Treffer seit dem Tailwind-
 //   Redesign, siehe DataExport/ProAdManager fuer denselben Anker.
@@ -87,12 +89,26 @@ const KANavigation = {
         // 29.08.2026 live gefunden: article.aditem existiert nicht mehr (0 Treffer) --
         // W/S-Navigation zwischen Anzeigen fand deshalb nie welche. Aktueller Anker ist
         // article[data-adid], gleiche Basis wie DataExport/RentalAnalyzer.
+        //
+        // BUGFIX 29.08.2026: currentIndex wurde hier IMMER auf -1 zurueckgesetzt, und
+        // diese Funktion laeuft bei jedem einzelnen Tastendruck (siehe init()) -- nicht
+        // nur wenn sich die Kartenliste tatsaechlich aendert. Jedes S sprang dadurch
+        // wieder auf Karte 1 statt weiterzugehen (navigateAds(1) macht aus -1 immer 0).
+        // Fix: nur zuruecksetzen, wenn sich die Liste wirklich geaendert hat, und dabei
+        // versuchen, den Index der bisher fokussierten Karte in der neuen Liste
+        // wiederzufinden statt sie zu verlieren.
         const ads = Array.from(document.querySelectorAll('article[data-adid]')).filter(ad => {
             const style = window.getComputedStyle(ad);
             return style.display !== 'none' && style.visibility !== 'hidden';
         });
+
+        const previouslyFocused = this.visibleAds[this.currentIndex];
+        const sameList = ads.length === this.visibleAds.length && ads.every((ad, i) => ad === this.visibleAds[i]);
+
         this.visibleAds = ads;
-        this.currentIndex = -1;
+        if (!sameList) {
+            this.currentIndex = previouslyFocused ? ads.indexOf(previouslyFocused) : -1;
+        }
     },
 
     navigateAds(direction) {

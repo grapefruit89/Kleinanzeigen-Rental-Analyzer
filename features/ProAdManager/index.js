@@ -8,13 +8,15 @@
 //   der Ergebnisliste, und Liberty/GPT-Luecken (leere Slots) sind weg.
 // ANCHOR (2026-08-29 live):
 //   Karten: article[data-adid] + closest('li')
-//   Filler: div[id^="srpb-result-list"], .liberty-hide-unfilled,
-//           div[id^="google_ads_iframe"] (Dritt-Anbieter-IDs, nicht
-//           Kleinanzeigens eigenes Markup -- unveraendert)
+//   Filler: li:has(div[id^="srpb-result-list"]|.liberty-hide-unfilled|
+//           div[id^="google_ads_iframe"]) -- EIGENER Scan, nicht als Kind
+//           einer Ad-Karte gesucht (siehe BUGFIX-Kommentar unten: 7 von 34
+//           <li> im Ergebnis-Grid haben gar keine Ad-Karte drin)
 //   Dashboard-Anker: #srchrslt-adtable
 // BROKEN IF:
 //   "<N> Anzeigen"-Text im Dashboard bleibt bei 0 trotz sichtbarer Karten
 //   ODER Dashboard erscheint gar nicht auf einer echten /s-.../-Seite
+//   ODER graue leere Kacheln bleiben in der Liste trotz Dashboard-Zahl > 0
 // DO NOT:
 //   PRO/TOP ueber DOM-Klassen erkennen (isProBadge ist bewusst false) --
 //   die Sponsoring-Info liegt jetzt in einem JSON-Blob im props-Attribut
@@ -48,6 +50,19 @@ KAFeatureManager.register('ProAdManager', async () => {
         // ohne dass das sichtbar war (kein Fehler, einfach eine leere NodeList). Neuer
         // Anker: article[data-adid] (gleiche Basis wie DataExport/WasdNavigation/
         // RentalAnalyzer), Wrapper-<li> via closest('li').
+        //
+        // BUGFIX 29.08.2026: Filler-Slots separat scannen, nicht als Kind einer
+        // Ad-Karte suchen. Live bestaetigt: von 34 <li> in #srchrslt-adtable haben 7
+        // GAR KEIN article[data-adid] -- reine Liberty-Filler-Slots
+        // (data-liberty-position-name="srpb-result-list-N") in eigenen <li>-Elementen.
+        // Wer nur article[data-adid] als Startpunkt nimmt (wie zuerst hier gemacht),
+        // sieht diese 7 Loecher nie -- der Zaehler im Dashboard stimmt trotzdem
+        // (WORKS WHEN war nur halb erfuellt), die grauen Luecken bleiben aber sichtbar.
+        const fillerSelector = 'li:has(div[id^="srpb-result-list"]), li:has(.liberty-hide-unfilled), li:has(div[id^="google_ads_iframe"])';
+        document.querySelectorAll(fillerSelector).forEach(li => {
+            li.classList.add('ka-pad-filler-hidden'); // CSS-hide statt remove() -- React besitzt diesen Knoten
+        });
+
         const listItems = Array.from(document.querySelectorAll('article[data-adid]'))
             .map(ad => ad.closest('li'))
             .filter(Boolean);
@@ -56,16 +71,11 @@ KAFeatureManager.register('ProAdManager', async () => {
         let currentPro = 0;
 
         listItems.forEach(li => {
-            // Filler / Werbung filtern -- diese Selektoren gehoeren zu Drittanbieter-
-            // Ad-Slots (srpb/liberty/google_ads_iframe), nicht zu Kleinanzeigens eigenem
-            // Markup, und sind live weiterhin vorhanden (.liberty-hide-unfilled: 12
-            // Treffer bestaetigt).
-            if (li.querySelector('div[id^="srpb-result-list"]') ||
-                li.querySelector('.liberty-hide-unfilled') ||
-                li.querySelector('div[id^="google_ads_iframe"]')) {
-                li.classList.add('ka-pad-filler-hidden'); // CSS-hide statt remove() -- React besitzt diesen Knoten
-                return;
-            }
+            // Filler-<li> wurden oben schon separat behandelt -- ein <li> mit
+            // article[data-adid] UND einem Filler-Slot drin kommt zwar praktisch
+            // nicht vor, aber sicherheitshalber trotzdem ueberspringen statt doppelt
+            // zu zaehlen.
+            if (li.classList.contains('ka-pad-filler-hidden')) return;
 
             const ad = li.querySelector('article[data-adid]');
             if (!ad) return;
