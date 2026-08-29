@@ -1,10 +1,15 @@
-body.ka-feature-widescreenlayout .l-page-wrapper, 
-body.ka-feature-widescreenlayout #site-content {
+/* 29.08.2026 live gefunden: .l-page-wrapper, #site-content und .site-base
+   existieren alle nicht mehr (0 Treffer) -- Feature war komplett wirkungslos,
+   "funktioniert hinten und vorne nicht mehr" war korrekt. Kleinanzeigen
+   begrenzt die Content-Breite jetzt ueber eine wiederverwendete Tailwind-
+   Utility-Klasse .max-w-screen-custom (live: 970px, 10 Vorkommen auf der
+   Suchergebnisseite -- Header-Zeilen UND Haupt-Content nutzen dieselbe
+   Klasse, ein Override reicht fuer beides). */
+body.ka-feature-widescreenlayout .max-w-screen-custom {
     max-width: 1600px !important; /* Gesundes Widescreen-Layout statt kaputten %-Werten */
 }
 
-/* Verhindere, dass Flexboxen durch zu große Container platzen */
-body.ka-feature-widescreenlayout .site-base {
-    max-width: 100% !important;
+/* Verhindere, dass Flexboxen durch die groesseren Container seitlich rausbrechen. */
+body.ka-feature-widescreenlayout {
     overflow-x: hidden;
 }

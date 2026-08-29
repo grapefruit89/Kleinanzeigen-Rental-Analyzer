@@ -1,11 +1,15 @@
 /* Startseite: Kategorien, Feature-Angebote und ähnliche Inhaltsblöcke ausblenden */
-body.ka-feature-cleanhomepage #feature-offer-section {
+/* 29.08.2026 live gefunden: #feature-offer-section existiert nicht mehr (0 Treffer) --
+   diese Regel war komplett wirkungslos. Neuer Anker: die Kategorien-Box hat zwar
+   selbst keine stabile ID mehr, aber ihre Überschrift traegt weiterhin
+   #sidebar-category-heading -- darüber per :has() die umschließende <section> treffen,
+   das ist robuster als ein Tailwind-Klassenname. */
+body.ka-feature-cleanhomepage section:has(#sidebar-category-heading) {
     display: none !important;
 }
 
-/* "Feedback geben" Astro-Island ausblenden */
+/* "Feedback geben" Astro-Island ausblenden -- 29.08.2026 live bestaetigt: existiert
+   weiterhin unveraendert (20 Treffer auf der Startseite). */
 body.ka-feature-cleanhomepage li:has(astro-island[component-url*="FeedItemTile"]) {
     display: none !important;
 }
-
-
