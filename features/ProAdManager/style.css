@@ -2,22 +2,29 @@
 /* Filler-/Werbe-Slots (srpb, liberty, google_ads_iframe) und TOP-Ads ohne
    gueltiges Datum -- per Klasse ausgeblendet statt aus dem DOM entfernt,
    damit React den Knoten weiter besitzt (siehe index.js cleanUp()). */
-body.ka-feature-proadmanager li.ad-listitem.ka-pad-filler-hidden {
+/* BUGFIX 29.08.2026: li.ad-listitem existiert nicht mehr (0 Treffer, siehe
+   Audit). index.js setzt ka-pad-filler-hidden/ka-pro-hidden laengst korrekt
+   auf die nackten <li>, aber diese Regeln suchten weiter li.ad-listitem.* --
+   die Kombination trifft nie, display:none griff nie. Dashboard-Zahl konnte
+   stimmen, die grauen Filler-Kacheln blieben trotzdem sichtbar. Klasse
+   .ad-listitem hier komplett gestrichen, nicht durch etwas Neues ersetzt --
+   der Elternselektor ist schon body.ka-feature-proadmanager, das reicht. */
+body.ka-feature-proadmanager li.ka-pad-filler-hidden {
     display: none !important;
 }
 
-body.ka-feature-proadmanager li.ad-listitem.ka-pro-hidden {
+body.ka-feature-proadmanager li.ka-pro-hidden {
     display: none !important;
 }
 
-body.ka-feature-proadmanager.ka-show-pro li.ad-listitem.ka-pro-hidden {
+body.ka-feature-proadmanager.ka-show-pro li.ka-pro-hidden {
     display: list-item !important;
     border: none !important;
     margin-bottom: 10px !important;
     padding: 0 !important;
 }
 
-body.ka-feature-proadmanager.ka-show-pro li.ad-listitem.ka-pro-hidden article.aditem {
+body.ka-feature-proadmanager.ka-show-pro li.ka-pro-hidden article[data-adid] {
     opacity: 1 !important;
     background-color: rgba(89, 50, 173, 0.2) !important;
     border: 1px solid #5932ad !important;
