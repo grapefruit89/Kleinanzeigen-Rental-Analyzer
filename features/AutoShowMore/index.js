@@ -1,6 +1,12 @@
 KAFeatureManager.register('AutoShowMore', () => {
-    // Only run on homepage
-    if (window.location.pathname !== '/' && window.location.pathname !== '') {
+    // Nur auf Homepage-artigen Feed-Seiten laufen lassen: "/" (Startseite ohne
+    // gespeicherten Ort) UND "/stadt/<ort>/" (Startseite MIT gespeichertem Ort --
+    // exakt dieselbe "Weitere Anzeigen"-Feed-Struktur, live am 29.08.2026 gegen
+    // /stadt/muenchen/ verifiziert: div.flex.justify-center.p-small button
+    // matcht dort 1:1). Bewusst NICHT auf /s-.../ (echte Suchergebnisseiten) --
+    // andere Paginierung/Semantik, nicht getestet.
+    const p = window.location.pathname;
+    if (p !== '/' && p !== '' && !/^\/stadt\/[^/]+\/?$/.test(p)) {
         return;
     }
 
@@ -21,8 +27,8 @@ KAFeatureManager.register('AutoShowMore', () => {
     // naechste (randomisierte) Pause, dann pruefen ob der Button noch da ist.
     // Hartes Limit von 15 Klicks als Sicherheitsnetz gegen Endlos-Klicken.
     const MAX_CLICKS = 15;
-    const MIN_DELAY_MS = 1800;           // Mindestpause zwischen Klicks (bewusst "menschlich" langsam)
-    const MAX_DELAY_MS = 3200;           // Obergrenze fuer die zufaellige Pause
+    const MIN_DELAY_MS = 500;            // Mindestpause zwischen Klicks (menschlich, aber merklich schneller als vorher 1800ms)
+    const MAX_DELAY_MS = 900;            // Obergrenze fuer die zufaellige Pause (vorher 3200ms)
     const BUSY_POLL_MS = 150;            // wie oft aria-busy zwischengeprueft wird
     const BUSY_TIMEOUT_MS = 8000;        // Sicherheitsabbruch, falls aria-busy nie weggeht
     const INITIAL_SEARCH_ATTEMPTS = 10;  // wie oft anfangs auf das Erscheinen des Buttons gewartet wird
