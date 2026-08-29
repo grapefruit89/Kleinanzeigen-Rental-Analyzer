@@ -1,3 +1,18 @@
+// FEATURE: WasdNavigation
+// INTENT:
+//   Tastatur-Navigation auf Suchergebnisseiten: A/D blaettert Seiten,
+//   W/S springt zwischen sichtbaren Anzeigen-Karten (scrollt + markiert).
+// WORKS WHEN:
+//   Auf /s-.../ scrollt S zur naechsten Karte und fuegt ka-ad-focused hinzu.
+// ANCHOR (2026-08-29 live):
+//   Karten: article[data-adid] (W/S)
+//   Seiten: a[aria-label="Nächste"|"Zurück"] (A/D, war schon robust)
+// BROKEN IF:
+//   S/W bewegt den Fokus nicht trotz mehrerer sichtbarer Karten auf der Seite
+// DO NOT:
+//   article.aditem als Karten-Anker nutzen -- 0 Treffer seit dem Tailwind-
+//   Redesign, siehe DataExport/ProAdManager fuer denselben Anker.
+
 const KANavigation = {
     currentIndex: -1,
     visibleAds: [],

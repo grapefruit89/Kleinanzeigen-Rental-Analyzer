@@ -1,3 +1,27 @@
+// FEATURE: ProAdManager
+// INTENT:
+//   Werbe-/Filler-Slots (Liberty/GPT-Luecken ohne Inhalt) in der Suchliste
+//   per CSS-Klasse ausblenden, PRO-Anzeigen zaehlen/optional ausblenden
+//   (Dashboard-Button ueber der Ergebnisliste).
+// WORKS WHEN:
+//   Auf /s-.../ zeigt das Dashboard "<N> Anzeigen" mit N > 0 direkt ueber
+//   der Ergebnisliste, und Liberty/GPT-Luecken (leere Slots) sind weg.
+// ANCHOR (2026-08-29 live):
+//   Karten: article[data-adid] + closest('li')
+//   Filler: div[id^="srpb-result-list"], .liberty-hide-unfilled,
+//           div[id^="google_ads_iframe"] (Dritt-Anbieter-IDs, nicht
+//           Kleinanzeigens eigenes Markup -- unveraendert)
+//   Dashboard-Anker: #srchrslt-adtable
+// BROKEN IF:
+//   "<N> Anzeigen"-Text im Dashboard bleibt bei 0 trotz sichtbarer Karten
+//   ODER Dashboard erscheint gar nicht auf einer echten /s-.../-Seite
+// DO NOT:
+//   PRO/TOP ueber DOM-Klassen erkennen (isProBadge ist bewusst false) --
+//   die Sponsoring-Info liegt jetzt in einem JSON-Blob im props-Attribut
+//   eines <astro-island> (sponsoredAdPresent/resultAds), noch nicht gegen
+//   eine echte TOP-Karte verifiziert. Erst Mapping bestaetigen, dann
+//   wieder aktivieren -- nicht raten (siehe Chat 29.08.2026).
+
 KAFeatureManager.register('ProAdManager', async () => {
     // Startseite ignorieren
     if (window.location.pathname === '/' || window.location.pathname === '') {

@@ -1,20 +1,33 @@
+// FEATURE: DataExport
+// INTENT:
+//   Suchergebnisse (mehrere Seiten) als JSONL exportieren, optional mit
+//   nachgeladener Anzeigen-Detailseite (Volltext, Datum, Versand) --
+//   Rohstoff fuer LLM/Marktuebersicht, keine perfekt normalisierte DB.
+// WORKS WHEN:
+//   Auf /s-.../ liefert Start-Klick "Ads Found" > 0 und nach Abschluss eine
+//   .jsonl-Datei mit id_of_ad + title + price bei jeder Zeile.
+// ANCHOR (2026-08-29 live):
+//   Liste:  article[data-adid]  (data-href = Detaillink, kein <a> mehr noetig)
+//   Seite2+: /seite:N/-Pfadsegment selbst bauen (kein Next-Link mehr)
+//   Detail: #viewad-description, #viewad-extra-info (Datum),
+//           .boxedarticle--details--shipping (Versand -- NICHT body-weit
+//           scannen: die "Aehnliche Anzeigen"-Sidebar auf der Detailseite
+//           laeuft noch auf altem article.aditem-Markup und liefert sonst
+//           falsche Treffer aus fremden Anzeigen)
+// BROKEN IF:
+//   0 Treffer bei article[data-adid] auf einer echten /s-.../-Seite
+//   ODER "Pages Scanned" bleibt bei 1 trotz Max. Seiten > 1 und mehreren
+//        vorhandenen Ergebnisseiten
+//   ODER exportierte Zeilen haben durchgehend versand_moeglich=true
+// DO NOT:
+//   Versand ueber querySelectorAll('body *') raten -- fasst Sidebar-Karten
+//   fremder Anzeigen mit ein. Alte Klassen (li.ad-listitem, article.aditem,
+//   #site-search-query, a.pagination-next) fuer die HAUPT-Suchliste nicht
+//   wiederverwenden -- die gelten nur noch fuer die Detailseiten-Sidebar.
+
 KAFeatureManager.register('DataExport', async () => {
     // Only run on search pages
     if (!window.location.pathname.startsWith('/s-')) return;
-
-    // 29.08.2026 live gegen die aktuelle Such-UI verifiziert: die alte Markup-Basis
-    // (li.ad-listitem > article.aditem, .aditem-main--*) existiert nicht mehr --
-    // Kleinanzeigen hat seitdem auf Tailwind-Utility-Klassen umgestellt, die sich
-    // vermutlich haeufiger aendern als semantische Klassen. Deshalb hier bewusst
-    // INHALTS-basiert statt klassen-basiert geparst (Regex auf Text/Attribute statt
-    // feste Tailwind-Klassennamen), damit kuenftige Klassen-Churn weniger oft bricht:
-    //   - Container: article[data-adid] (traegt data-adid + data-href direkt, kein
-    //     <a href="/s-anzeige/...">-Element mehr noetig)
-    //   - Titel: erstes h2/h3 im Artikel
-    //   - Preis: <p>, deren Text auf €/VB/"Zu verschenken" matcht
-    //   - Groesse/Zimmer: <p>, deren Text "m²" enthaelt
-    //   - Ort (PLZ + Stadt): <span>, deren Text mit 5 Ziffern beginnt
-    //   - Kurzbeschreibung (Teaser): laengster verbleibender <p>-Text im Artikel
 
     let state = {
         isScraping: false,
@@ -67,19 +80,36 @@ KAFeatureManager.register('DataExport', async () => {
         }
     }
 
+    // typ: "fest" | "vb" | "verschenken" | "anfrage" -- getrennt von betrag, damit
+    // "auf Anfrage"/"VB ohne Zahl" nicht mit einem echten Festpreis verwechselt wird.
     function parsePrice(priceString) {
         try {
-            if (!priceString) return { betrag: null, zusatz: null };
+            if (!priceString) return { betrag: null, zusatz: null, typ: 'anfrage' };
             const cleanString = priceString.replace(/\s+/g, ' ').trim();
+
+            if (/zu verschenken/i.test(cleanString)) {
+                return { betrag: null, zusatz: null, typ: 'verschenken' };
+            }
+
             const betragMatch = cleanString.match(/(\d[\d\.]*)/);
+            const isVb = /VB\b/i.test(cleanString);
             let betrag = null;
             if (betragMatch) {
                 betrag = parseFloat(betragMatch[1].replace(/\./g, '').replace(/,/g, '.'));
             }
-            const zusatzMatch = cleanString.match(/VB/i);
-            return { betrag: betrag, zusatz: zusatzMatch ? 'VB' : null };
+
+            let typ;
+            if (betrag === null) {
+                typ = 'anfrage'; // z.B. "VB" ganz ohne Zahl auf der Karte
+            } else if (isVb) {
+                typ = 'vb';
+            } else {
+                typ = 'fest';
+            }
+
+            return { betrag, zusatz: isVb ? 'VB' : null, typ };
         } catch (e) {
-            return { betrag: null, zusatz: null };
+            return { betrag: null, zusatz: null, typ: 'anfrage' };
         }
     }
 
@@ -117,6 +147,11 @@ KAFeatureManager.register('DataExport', async () => {
                     .find(t => /^\d{5}\s/.test(t));
                 if (plzSpan) data.location = parseLocation(plzSpan);
 
+                // Eine Bild-URL fuers Kartenbild -- kostet nichts (steckt schon im
+                // Karten-<img>), hilft aber jedem LLM/jeder Uebersicht enorm.
+                const img = article.querySelector('img[src*="kleinanzeigen.de/api/v1/prod-ads/images/"]');
+                if (img && img.src) data.bild = img.src;
+
                 if (data.id_of_ad) extracted.push(data);
             } catch (e) {}
         });
@@ -125,9 +160,13 @@ KAFeatureManager.register('DataExport', async () => {
 
     // Detailseiten-Parsing: Vollbeschreibung, Einstelldatum, Versandoption.
     // 29.08.2026 live verifiziert -- #viewad-description und #viewad-extra-info
-    // existieren auf der Detailseite; Versand wurde bei Wohnungsanzeigen (logisch,
-    // eine Wohnung kann man nicht verschicken) nicht gefunden, deshalb hier best
-    // effort mit Fallback auf null statt festem Selector.
+    // existieren auf der Detailseite. Versand: .boxedarticle--details--shipping ist
+    // der EINZIGE korrekte Anker (Text "Versand möglich"/"Nur Abholung") --
+    // #viewad-shipping-options existiert nicht (mehr), und ein body-weiter Scan nach
+    // dem Text "Versand möglich" fasst faelschlich die "Aehnliche Anzeigen"-Sidebar
+    // mit ein (die laeuft noch auf altem article.aditem-Markup und zeigt DEREN
+    // Versand-Badges, nicht das der aktuellen Anzeige). Ohne .boxedarticle--details--
+    // shipping bleibt das Feld bewusst null statt geraten.
     function extractDetailsFromDocument(doc) {
         const result = { description_full: null, eingestellt_am: null, versand_moeglich: null };
         try {
@@ -149,12 +188,11 @@ KAFeatureManager.register('DataExport', async () => {
         } catch (e) {}
 
         try {
-            const shippingEl = doc.getElementById('viewad-shipping-options')
-                || Array.from(doc.querySelectorAll('body *')).find(e => e.children.length === 0 && /versand möglich|versand ist möglich/i.test(e.textContent || ''));
+            const shippingEl = doc.querySelector('.boxedarticle--details--shipping');
             if (shippingEl) {
-                result.versand_moeglich = true;
-            } else if (Array.from(doc.querySelectorAll('body *')).find(e => e.children.length === 0 && /kein versand|nur abholung/i.test(e.textContent || ''))) {
-                result.versand_moeglich = false;
+                const text = shippingEl.textContent.trim();
+                if (/versand/i.test(text)) result.versand_moeglich = true;
+                else if (/abholung/i.test(text)) result.versand_moeglich = false;
             }
         } catch (e) {}
 
@@ -208,6 +246,17 @@ KAFeatureManager.register('DataExport', async () => {
             }
 
             state.pagesScanned = currentPage;
+
+            // Herkunft pro Zeile mitschreiben -- sonst weiss man in drei Wochen
+            // nicht mehr, aus welcher Suche/Seite eine Zeile stammt.
+            const exportedAt = new Date().toISOString();
+            ads.forEach(ad => {
+                ad.quelle = {
+                    such_url: baseUrl,
+                    seite: currentPage,
+                    exportiert_am: exportedAt
+                };
+            });
             state.allAds.push(...ads);
 
             updateProgress(`Scraping Page ${state.pagesScanned}...`, state.pagesScanned, state.allAds.length);
@@ -326,13 +375,24 @@ KAFeatureManager.register('DataExport', async () => {
         }
     }
 
+    // 29.08.2026: #site-search-query existiert nicht mehr -- Dateiname fiel deshalb
+    // IMMER auf "suche" zurueck. Neuer Fallback dreistufig: Suchbegriff
+    // (input[name="keywords"]) -> Kategorie-Slug aus der URL (z.B.
+    // "kueche-esszimmer" aus /s-kueche-esszimmer/...) -> zuletzt "suche". Bei einer
+    // reinen Kategorie-Suche ohne Freitext (Suchfeld leer) ist das jetzt trotzdem
+    // aussagekraeftig statt immer gleich "suche".
+    function guessExportName() {
+        const keywords = document.querySelector('input[name="keywords"]')?.value?.trim();
+        if (keywords) return keywords;
+
+        const catMatch = window.location.pathname.match(/^\/s-([a-z0-9-]+)\//i);
+        if (catMatch) return catMatch[1];
+
+        return 'suche';
+    }
+
     function exportJsonl() {
-        // 29.08.2026 live gefunden: #site-search-query existiert nicht mehr (Klassen-
-        // Drift wie ueberall sonst) -- Dateiname fiel deshalb IMMER auf "suche" zurueck,
-        // genau wie im echten Export zu sehen (KA_Export_suche.jsonl). Aktuelles Suchfeld
-        // hat keine feste ID mehr, nur noch name="keywords".
-        const queryTerm = document.querySelector('input[name="keywords"]')?.value || 'suche';
-        const filename = sanitizeFilename(`KA_Export_${queryTerm}`);
+        const filename = sanitizeFilename(`KA_Export_${guessExportName()}`);
 
         const jsonlOutput = state.allAds.map(obj => JSON.stringify(obj)).join('\n');
 
