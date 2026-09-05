@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Kleinanzeigen Rental Analyzer",
-  "version": "2.0.0",
-  "description": "Modulares Analyse-Tool & UI-Verbesserungen für Kleinanzeigen.de",
+  "version": "2.0.1",
+  "description": "Modulares Analyse-Tool & UI-Verbesserungen fuer Kleinanzeigen.de",
   "permissions": [
     "storage",
     "activeTab",
@@ -19,7 +19,7 @@
     "rule_resources": [
       {
         "id": "ruleset_1",
-        "enabled": true,
+        "enabled": false,
         "path": "rules.json"
       }
     ]
@@ -35,9 +35,7 @@
   },
   "content_scripts": [
     {
-      "matches": [
-        "https://www.kleinanzeigen.de/*"
-      ],
+      "matches": ["https://www.kleinanzeigen.de/*"],
       "js": [
         "core/Storage.js",
         "core/FeatureManager.js",
@@ -68,15 +66,9 @@
       "run_at": "document_idle"
     },
     {
-      "matches": [
-        "https://www.kleinanzeigen.de/*"
-      ],
-      "js": [
-        "features/InPageMenu/index.js"
-      ],
-      "css": [
-        "features/InPageMenu/style.css"
-      ],
+      "matches": ["https://www.kleinanzeigen.de/*"],
+      "js": ["core/Storage.js", "features/InPageMenu/index.js"],
+      "css": ["features/InPageMenu/style.css"],
       "run_at": "document_start"
     }
   ]
