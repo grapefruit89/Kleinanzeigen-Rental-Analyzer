@@ -1,31 +1,26 @@
+importScripts('Storage.js');
+
+function applyTrackerRuleset(enabled) {
+    const action = enabled
+        ? chrome.declarativeNetRequest.updateEnabledRulesets({ enableRulesetIds: ['ruleset_1'] })
+        : chrome.declarativeNetRequest.updateEnabledRulesets({ disableRulesetIds: ['ruleset_1'] });
+
+    action.then(() => {
+        console.log(`[KA Background] Tracker Blocker ${enabled ? 'ENABLED' : 'DISABLED'}`);
+    }).catch((e) => {
+        console.error('[KA Background] Ruleset update failed:', e);
+    });
+}
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === "updateTrackerBlocker") {
-        const isEnabled = request.enabled;
-        
-        if (isEnabled) {
-            chrome.declarativeNetRequest.updateEnabledRulesets({
-                enableRulesetIds: ["ruleset_1"]
-            }).then(() => console.log("[KA Background] Tracker Blocker ENABLED"));
-        } else {
-            chrome.declarativeNetRequest.updateEnabledRulesets({
-                disableRulesetIds: ["ruleset_1"]
-            }).then(() => console.log("[KA Background] Tracker Blocker DISABLED"));
-        }
+    if (request.action === 'updateTrackerBlocker') {
+        applyTrackerRuleset(request.enabled === true);
+        sendResponse({ ok: true });
+        return true;
     }
 });
 
-// Initialize on startup based on storage
 chrome.storage.local.get(['ka_settings'], (result) => {
     const settings = result.ka_settings || {};
-    const isEnabled = settings['feature_TrackerBlocker'] !== false; // Default true
-    
-    if (isEnabled) {
-        chrome.declarativeNetRequest.updateEnabledRulesets({
-            enableRulesetIds: ["ruleset_1"]
-        });
-    } else {
-        chrome.declarativeNetRequest.updateEnabledRulesets({
-            disableRulesetIds: ["ruleset_1"]
-        });
-    }
+    applyTrackerRuleset(KAStorage.isFeatureEnabled(settings, 'TrackerBlocker'));
 });

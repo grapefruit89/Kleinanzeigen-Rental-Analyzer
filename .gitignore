@@ -1,0 +1,11 @@
+_metadata/
+.DS_Store
+Thumbs.db
+node_modules/
+dist/
+*.crx
+*.pem
+*.zip
+.vscode/
+.idea/
+*.log

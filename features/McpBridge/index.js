@@ -4,13 +4,33 @@ KAFeatureManager.register('McpBridge', () => {
     let ws = null;
     let isConnecting = false;
     let reconnectTimer = null;
+    let bridgeToken = '';
+
+    function randomToken() {
+        const bytes = new Uint8Array(16);
+        crypto.getRandomValues(bytes);
+        return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    async function loadToken() {
+        const settings = await KAStorage.get('ka_settings', {});
+        if (typeof settings.mcp_bridge_token === 'string' && settings.mcp_bridge_token.length >= 16) {
+            bridgeToken = settings.mcp_bridge_token;
+            return;
+        }
+        bridgeToken = randomToken();
+        settings.mcp_bridge_token = bridgeToken;
+        await KAStorage.set('ka_settings', settings);
+        console.warn('[KA MCP Bridge] Neues Token erzeugt. Der lokale Client muss token mitsenden.');
+        console.warn('[KA MCP Bridge] token=' + bridgeToken);
+    }
 
     function connect() {
         if (isConnecting || (ws && ws.readyState === WebSocket.OPEN)) return;
         isConnecting = true;
 
         try {
-            ws = new WebSocket('ws://localhost:8765');
+            ws = new WebSocket('ws://127.0.0.1:8765');
         } catch (e) {
             isConnecting = false;
             scheduleReconnect();
@@ -18,7 +38,7 @@ KAFeatureManager.register('McpBridge', () => {
         }
 
         ws.onopen = () => {
-            console.log('[KA MCP Bridge] Verbunden mit lokalem MCP-Server.');
+            console.log('[KA MCP Bridge] Verbunden mit 127.0.0.1:8765');
             isConnecting = false;
         };
 
@@ -27,7 +47,18 @@ KAFeatureManager.register('McpBridge', () => {
             try {
                 data = JSON.parse(event.data);
             } catch (e) {
-                console.error('[KA MCP Bridge] Konnte Nachricht nicht parsen:', e);
+                console.error('[KA MCP Bridge] Nachricht nicht parsebar:', e);
+                return;
+            }
+
+            if (data.token !== bridgeToken) {
+                try {
+                    ws.send(JSON.stringify({
+                        type: 'error',
+                        requestId: data.requestId || null,
+                        error: 'unauthorized'
+                    }));
+                } catch (e) { /* ignore */ }
                 return;
             }
 
@@ -46,16 +77,14 @@ KAFeatureManager.register('McpBridge', () => {
         };
 
         ws.onerror = () => {
-            // onclose feuert danach ohnehin; hier nur sauber schließen
-            try { ws.close(); } catch (e) {}
+            try { ws.close(); } catch (e) { /* ignore */ }
         };
     }
 
     function scheduleReconnect() {
         clearTimeout(reconnectTimer);
-        // Alle 5s neu versuchen -- harmlos, wenn kein lokaler Server läuft
         reconnectTimer = setTimeout(connect, 5000);
     }
 
-    connect();
+    loadToken().then(connect);
 });
